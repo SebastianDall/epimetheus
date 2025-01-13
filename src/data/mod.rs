@@ -32,6 +32,7 @@ impl MethylationRecord {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_contig_id(&self) -> String {
         self.contig.to_string()
     }
@@ -57,6 +58,7 @@ impl GenomeWorkspaceBuilder {
         Ok(self)
     }
 
+    #[allow(dead_code)]
     pub fn add_record(&mut self, record: MethylationRecord) -> Result<&mut Self> {
         if let Some(contig_entry) = self.workspace.get_mut_contig(&record.get_contig_id()) {
             contig_entry.add_methylation(
@@ -95,6 +97,10 @@ impl GenomeWorkspace {
 
     fn get_mut_contig(&mut self, id: &str) -> Option<&mut Contig> {
         self.contigs.get_mut(id)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.contigs.is_empty()
     }
 }
 
