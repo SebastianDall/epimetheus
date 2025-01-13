@@ -44,17 +44,17 @@ jobs:
       - name: rename binary for upload
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            mv target/${{ matrix.target }}/release/methylation_utils.exe methylation_utils-${{ matrix.name_suffix }}${{ matrix.extension }}
+            mv target/${{ matrix.target }}/release/epimetheus.exe epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
           else
-            mv target/${{ matrix.target }}/release/methylation_utils methylation_utils-${{ matrix.name_suffix }}${{ matrix.extension }}
+            mv target/${{ matrix.target }}/release/epimetheus epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
           fi
         shell: bash
         
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: methylation_utils-${{ matrix.name_suffix }}
-          path: methylation_utils-${{ matrix.name_suffix }}${{ matrix.extension }}
+          name: epimetheus-${{ matrix.name_suffix }}
+          path: epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
 
   release:
     runs-on: ubuntu-latest
@@ -64,7 +64,7 @@ jobs:
       - name: Download Binaries
         uses: actions/download-artifact@v4
         with:
-          pattern: methylation_utils-*
+          pattern: epimetheus-*
           merge-multiple: true
           run-id: ${{ github.event.workflow_run_id }}
       - name: Create github release
@@ -73,8 +73,8 @@ jobs:
           tag_name: ${{ github.ref_name }}  # Use the tag as the release version
           release_name: "Release ${{ github.ref_name }}"
           files: |
-            methylation_utils-linux
-            methylation_utils-windows.exe
-            methylation_utils-macos
+            epimetheus-linux
+            epimetheus-windows.exe
+            epimetheus-macos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
