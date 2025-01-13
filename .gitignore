@@ -1,11 +1,11 @@
 data
+!tests/data/
 py_compare.py
 logs/
 soil.sh
 !src/data
 benchmark.sh
 out.tsv
-geobacillus-plasmids*
 flamegraph.svg
 /target
 motif/target
