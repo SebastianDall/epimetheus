@@ -46,9 +46,11 @@ fn test_methylation_pattern() {
     let actual = fs::read_to_string(&out_file).expect("Could not read output file");
     let expected = fs::read_to_string(&expected_out).expect("Could not read expected output file");
 
+    let normalize = |s: &str| s.replace("\r\n", "\n");
+
     assert_eq!(
-        actual.trim(),
-        expected.trim(),
+        normalize(actual.trim()),
+        normalize(expected.trim()),
         "Output did not match expected"
     );
 }
