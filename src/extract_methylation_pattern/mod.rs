@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use batch_loader::BatchLoader;
 use humantime::format_duration;
 use log::{debug, error, info};
@@ -103,6 +103,7 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
             }
             Err(e) => {
                 error!("Error reading batch: {e}");
+                bail!("Processing terminated due to error: {e}")
             }
         }
     }

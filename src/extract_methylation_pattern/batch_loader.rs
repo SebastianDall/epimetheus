@@ -313,4 +313,56 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_contig_mismatch_exits() -> anyhow::Result<()> {
+        let mut pileup_file = NamedTempFile::new().unwrap();
+        writeln!(
+            pileup_file,
+            "contig_3\t6\t1\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )?;
+        writeln!(
+            pileup_file,
+            "contig_3\t8\t1\tm\t133\t+\t0\t1\t255,0,0\t20\t0.00\t20\t123\t0\t0\t6\t0\t0"
+        )?;
+        writeln!(
+            pileup_file,
+            "contig_5\t12\t1\ta\t133\t+\t0\t1\t255,0,0\t20\t0.00\t5\t123\t0\t0\t6\t0\t0"
+        )?; // This contig does not exist in the assembly
+        writeln!(
+            pileup_file,
+            "contig_4\t7\t1\ta\t133\t-\t0\t1\t255,0,0\t20\t0.00\t20\t123\t0\t0\t6\t0\t0"
+        )?;
+        writeln!(
+            pileup_file,
+            "contig_4\t13\t1\ta\t133\t-\t0\t1\t255,0,0\t20\t0.00\t5\t123\t0\t0\t6\t0\t0"
+        )?;
+
+        let mut assembly = AHashMap::new();
+        assembly.insert(
+            "contig_3".to_string(),
+            Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
+        );
+        assembly.insert(
+            "contig_4".to_string(),
+            Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
+        );
+        let file = File::open(pileup_file).unwrap();
+        let reader = BufReader::new(file);
+
+        let batch_loader = BatchLoader::new(reader, assembly, 2, 1);
+
+        let result = std::panic::catch_unwind(|| {
+            for ws in batch_loader {
+                let _workspace = ws.unwrap(); // This should fail on the third record
+            }
+        });
+
+        assert!(
+            result.is_err(),
+            "Expected the program to panic due to missing contig, but it did not."
+        );
+
+        Ok(())
+    }
 }
