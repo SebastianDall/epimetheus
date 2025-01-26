@@ -142,7 +142,7 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
                 .filter_map(|meth_rec| match meth_rec {
                     Ok(r)
                         if r.get_methylation_coverage().get_n_valid_cov()
-                            > self.min_valid_read_coverage =>
+                            >= self.min_valid_read_coverage =>
                     {
                         Some(Ok(r))
                     }
