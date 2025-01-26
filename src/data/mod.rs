@@ -32,9 +32,12 @@ impl MethylationRecord {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_contig_id(&self) -> String {
         self.contig.to_string()
+    }
+
+    pub fn get_methylation_coverage(&self) -> &MethylationCoverage {
+        &self.methylation
     }
 }
 
