@@ -21,6 +21,7 @@ pub mod batch_loader;
 pub mod utils;
 
 pub use args::MethylationPatternArgs;
+#[allow(unused_imports)]
 pub use utils::parse_to_methylation_record;
 
 pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
@@ -66,6 +67,11 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
     info!("Total contigs in assembly: {}", contigs.len());
 
     info!("Processing Pileup");
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(args.threads)
+        .build_global()
+        .expect("Could not initialize threadpool");
+
     let file = File::open(&args.pileup)?;
     let reader = BufReader::new(file);
 
@@ -85,11 +91,8 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
             Ok(workspace) => {
                 debug!("Workspace initialized");
                 let contigs_in_batch = workspace.get_workspace().len() as u32;
-                let mut methylation_pattern = calculate_contig_read_methylation_pattern(
-                    workspace,
-                    motifs.clone(),
-                    args.threads,
-                )?;
+                let mut methylation_pattern =
+                    calculate_contig_read_methylation_pattern(workspace, motifs.clone())?;
                 methylation_pattern_results.append(&mut methylation_pattern);
 
                 contigs_processed += contigs_in_batch;

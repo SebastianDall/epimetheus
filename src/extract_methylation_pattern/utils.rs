@@ -3,7 +3,7 @@ use csv::StringRecord;
 use methylome::{ModType, Strand};
 
 use crate::data::{methylation::MethylationCoverage, MethylationRecord};
-
+#[allow(dead_code)]
 pub fn parse_to_methylation_record(
     contig: String,
     n_valid_cov: u32,

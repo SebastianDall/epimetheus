@@ -1,5 +1,5 @@
 use ahash::AHashMap;
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use log::{debug, warn};
 use methylome::{ModType, Strand};
 use rayon::prelude::*;
@@ -9,8 +9,6 @@ use crate::data::{
     contig::Contig, methylation::MethylationCoverage, GenomeWorkspace, GenomeWorkspaceBuilder,
     MethylationRecord,
 };
-
-use super::parse_to_methylation_record;
 
 pub struct BatchLoader<R> {
     reader: BufReader<R>,
