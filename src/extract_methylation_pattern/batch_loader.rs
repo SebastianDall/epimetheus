@@ -83,7 +83,7 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
                 return Some(Ok(builder.build()));
             }
 
-            let maybe_pileup_chunk = match self.read_pileup_chunk(10_000) {
+            let maybe_pileup_chunk = match self.read_pileup_chunk(100_000) {
                 Ok(mc) => mc,
                 Err(e) => return Some(Err(e.into())),
             };
