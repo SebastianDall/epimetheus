@@ -111,43 +111,57 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
 
             let parsed_records: Result<Vec<_>, anyhow::Error> = pileup_chunk
                 .par_iter()
-                .map(|line| {
-                    let cols: Vec<&str> = line.trim_end().split('\t').collect();
-                    if cols.len() != 18 {
-                        return Err(anyhow!("Not enough columns in pileup chunk"));
-                    }
+                .enumerate()
+                .try_fold(
+                    || Vec::new(),
+                    |mut acc, (i, line)| {
+                        let cols: Vec<&str> = line.trim_end().split('\t').collect();
+                        if cols.len() != 18 {
+                            return Err(anyhow!("Not enough columns in pileup chunk"));
+                        }
 
-                    let contig_id = cols[0].to_string();
-                    let n_valid_cov: u32 = cols[9]
-                        .parse()
-                        .map_err(|_| anyhow!("Invalid n_valid_coverage number"))?;
-                    let position: usize = cols[1]
-                        .parse()
-                        .map_err(|_| anyhow!("Invalid mod_position field"))?;
-                    let mod_type: ModType = cols[3].parse()?;
-                    let strand: Strand = cols[5].parse()?;
-                    let n_modified: u32 = cols[11]
-                        .parse()
-                        .map_err(|_| anyhow!("Invalid n_modified field"))?;
+                        let contig_id = cols[0].to_string();
+                        let n_valid_cov: u32 = cols[9]
+                            .parse()
+                            .map_err(|_| anyhow!("Invalid n_valid_coverage number"))?;
+                        let position: usize = cols[1]
+                            .parse()
+                            .map_err(|_| anyhow!("Invalid mod_position field"))?;
+                        let mod_type: ModType = cols[3].parse()?;
+                        let strand: Strand = cols[5].parse()?;
+                        let n_modified: u32 = cols[11]
+                            .parse()
+                            .map_err(|_| anyhow!("Invalid n_modified field"))?;
 
-                    let methylation = MethylationCoverage::new(n_modified, n_valid_cov)?;
+                        let methylation = MethylationCoverage::new(n_modified, n_valid_cov)?;
 
-                    let methylation_record =
-                        MethylationRecord::new(contig_id, position, strand, mod_type, methylation);
+                        if methylation.get_n_valid_cov() >= self.min_valid_read_coverage {
+                            let methylation_record = MethylationRecord::new(
+                                contig_id,
+                                position,
+                                strand,
+                                mod_type,
+                                methylation,
+                            );
 
-                    Ok(methylation_record)
-                })
-                .filter_map(|meth_rec| match meth_rec {
-                    Ok(r)
-                        if r.get_methylation_coverage().get_n_valid_cov()
-                            >= self.min_valid_read_coverage =>
-                    {
-                        Some(Ok(r))
-                    }
-                    Ok(_) => None,
-                    Err(e) => Some(Err(e)),
-                })
-                .collect::<Result<Vec<_>, anyhow::Error>>();
+                            acc.push((i, methylation_record));
+                        }
+
+                        Ok(acc)
+                    },
+                )
+                .try_reduce(
+                    || Vec::new(),
+                    |mut acc, mut partial| {
+                        acc.append(&mut partial);
+                        Ok(acc)
+                    },
+                )
+                .map(|mut all_pairs| {
+                    all_pairs.sort_by_key(|(i, _)| *i);
+
+                    all_pairs.into_iter().map(|(_i, record)| record).collect()
+                });
 
             let records = match parsed_records {
                 Ok(r) => r,
