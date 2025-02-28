@@ -39,7 +39,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update
-          sudo apt-get install musl-tools
+          sudo apt-get install -y musl-tools
 
       - name: Build the binary
         run: cargo build --release --target ${{ matrix.target }}
