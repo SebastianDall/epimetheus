@@ -1,0 +1,42 @@
+on:
+  pull_request:
+    branches:
+      - main
+     
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            extension: ""
+            name_suffix: linux
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          # toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build the binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: test the binary
+        run: cargo test --release --target ${{ matrix.target }}
+
+
