@@ -1,3 +1,4 @@
+.helix
 data
 !tests/data/
 py_compare.py
