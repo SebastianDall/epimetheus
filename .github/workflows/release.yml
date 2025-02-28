@@ -12,7 +12,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             extension: ""
             name_suffix: linux
           - os: windows-latest
@@ -34,6 +34,12 @@ jobs:
           # toolchain: stable
           target: ${{ matrix.target }}
           override: true
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools
 
       - name: Build the binary
         run: cargo build --release --target ${{ matrix.target }}
