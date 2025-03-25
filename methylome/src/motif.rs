@@ -1,4 +1,4 @@
-use crate::{IupacBase, ModType};
+use crate::{find_motif_indices_in_contig, IupacBase, ModType};
 use anyhow::{bail, Result};
 use std::str::FromStr;
 
@@ -149,6 +149,76 @@ impl Motif {
     /// ```
     pub fn sequence_to_string(&self) -> String {
         self.sequence.iter().map(IupacBase::to_string).collect()
+    }
+
+    /// Converts a motif sequence into its possible raw DNA sequences.
+    ///
+    /// Degenerate bases are converted to its corresponding actual nucleotides
+    /// and a vector stores all the possible DNA sequences.
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let motif = Motif::new("GATCY", "m", 3).unwrap();
+    /// let sequences = motif.possible_dna_sequences();
+    /// let possible_seq = vec![
+    ///     vec![IupacBase::G, IupacBase::A, IupacBase::T, IupacBase::C, IupacBase::C],
+    ///     vec![IupacBase::G, IupacBase::A, IupacBase::T, IupacBase::C, IupacBase::T]
+    /// ];
+    /// assert_eq!(sequences, possible_seq);
+    /// ```
+    pub fn possible_dna_sequences(&self) -> Vec<Vec<IupacBase>> {
+        let mut sequences = vec![Vec::new()];
+
+        for base in &self.sequence {
+            let nucleotides = base.to_possible_nucleotides();
+            let mut new_sequences = Vec::new();
+            for seq in &sequences {
+                for nuc in &nucleotides {
+                    let mut new_seq = seq.clone();
+                    new_seq.push(*nuc);
+                    new_sequences.push(new_seq);
+                }
+            }
+            sequences = new_sequences;
+        }
+        sequences
+    }
+
+    /// Checks if current motif is the parent motif of another motif
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, find_motif_indices_in_contig, Motif};
+    ///
+    /// let parent = Motif::new("GATC", "a", 1).unwrap();
+    /// let child = Motif::new("RGATCY", "a", 2).unwrap();
+    ///
+    /// let parent2 = Motif::new("CCNGG", "m", 0).unwrap();
+    /// let not_child = Motif::new("CCWGG", "m", 1).unwrap();
+    ///
+    /// assert!(parent.is_child_motif(&child));
+    /// assert!(!parent2.is_child_motif(&not_child));
+    /// ```
+    pub fn is_child_motif(&self, child: &Motif) -> bool {
+        if self.mod_type != child.mod_type {
+            return false;
+        };
+
+        let child_sequences = child.possible_dna_sequences();
+        let child_mod_pos = child.mod_position as usize;
+
+        for seq in child_sequences {
+            let seq_str = seq.iter().map(IupacBase::to_string).collect::<String>();
+            let indices = find_motif_indices_in_contig(&seq_str, self);
+
+            if !indices.is_empty() && indices.contains(&child_mod_pos) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

@@ -212,4 +212,34 @@ impl IupacBase {
             IupacBase::N => ".",
         }
     }
+
+    /// Converts the `IupacBase` into its possible bases as vec![char].
+    ///
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::IupacBase;
+    ///
+    /// let nuc = IupacBase::R.to_possible_nucleotides();
+    /// assert_eq!(nuc, vec![IupacBase::A,IupacBase::G]);
+    /// ```
+    pub fn to_possible_nucleotides(&self) -> Vec<IupacBase> {
+        match self {
+            IupacBase::A => vec![IupacBase::A],
+            IupacBase::T => vec![IupacBase::T],
+            IupacBase::G => vec![IupacBase::G],
+            IupacBase::C => vec![IupacBase::C],
+            IupacBase::R => vec![IupacBase::A, IupacBase::G],
+            IupacBase::Y => vec![IupacBase::C, IupacBase::T],
+            IupacBase::S => vec![IupacBase::C, IupacBase::G],
+            IupacBase::W => vec![IupacBase::A, IupacBase::T],
+            IupacBase::K => vec![IupacBase::G, IupacBase::T],
+            IupacBase::M => vec![IupacBase::A, IupacBase::C],
+            IupacBase::B => vec![IupacBase::C, IupacBase::G, IupacBase::T],
+            IupacBase::D => vec![IupacBase::A, IupacBase::G, IupacBase::T],
+            IupacBase::H => vec![IupacBase::A, IupacBase::C, IupacBase::T],
+            IupacBase::V => vec![IupacBase::A, IupacBase::C, IupacBase::G],
+            IupacBase::N => vec![IupacBase::A, IupacBase::T, IupacBase::G, IupacBase::C],
+        }
+    }
 }
