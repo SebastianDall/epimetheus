@@ -3,7 +3,7 @@ use batch_loader::BatchLoader;
 use humantime::format_duration;
 use log::{debug, error, info};
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{BufReader, BufWriter, Write},
     path::Path,
     time::Instant,
@@ -14,6 +14,7 @@ use crate::{
     processing::{
         calculate_contig_read_methylation_pattern, create_motifs, MotifMethylationDegree,
     },
+    utils::create_output_file,
 };
 
 pub mod args;
@@ -30,18 +31,7 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
     );
 
     let outpath = Path::new(&args.output);
-
-    if let Some(ext) = outpath.extension() {
-        if ext != "tsv" {
-            anyhow::bail!("Incorrect file extension {:?}. Should be tsv", ext);
-        }
-        if let Some(parent) = outpath.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Could not create parent directory: {:?}", parent))?;
-        }
-    } else {
-        anyhow::bail!("No filename provided for output. Should be a .tsv file.");
-    }
+    create_output_file(&outpath)?;
 
     let motifs = match args.motifs {
         Some(motifs) => {
