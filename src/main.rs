@@ -3,13 +3,16 @@ use clap::Parser;
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::info;
+use motif_clustering::motif_clustering;
 use std::time::Instant;
 
 mod argparser;
 mod data;
 mod data_load;
 mod extract_methylation_pattern;
+mod motif_clustering;
 mod processing;
+mod utils;
 
 use crate::extract_methylation_pattern::extract_methylation_pattern;
 use argparser::Args;
@@ -25,6 +28,10 @@ fn main() -> Result<()> {
         argparser::Commands::MethylationPattern(methyl_args) => {
             let methyl_args = methyl_args.clone();
             extract_methylation_pattern(methyl_args)?;
+        }
+        argparser::Commands::MotifCluster(motif_cluster_args) => {
+            let motif_cluster_args = motif_cluster_args.clone();
+            motif_clustering(motif_cluster_args)?;
         }
     }
 
