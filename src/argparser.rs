@@ -1,4 +1,7 @@
-use crate::extract_methylation_pattern::args::MethylationPatternArgs;
+use crate::{
+    extract_methylation_pattern::args::MethylationPatternArgs,
+    motif_clustering::MotifClusteringArgs,
+};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -11,4 +14,5 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     MethylationPattern(MethylationPatternArgs),
+    MotifCluster(MotifClusteringArgs),
 }
