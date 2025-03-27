@@ -257,6 +257,11 @@ impl IupacBase {
     ///
     /// let nuc = IupacBase::from_nucleotides(&nucs).unwrap();
     /// assert_eq!(nuc, IupacBase::M);
+    ///
+    /// nucs.insert(IupacBase::G);
+    /// nucs.insert(IupacBase::T);
+    /// let nuc = IupacBase::from_nucleotides(&nucs).unwrap();
+    /// assert_eq!(nuc, IupacBase::N);
     /// ```
     pub fn from_nucleotides(
         nucs: &std::collections::HashSet<IupacBase>,
@@ -278,8 +283,15 @@ impl IupacBase {
             [IupacBase::A, IupacBase::G, IupacBase::T] => Ok(IupacBase::D),
             [IupacBase::A, IupacBase::C, IupacBase::T] => Ok(IupacBase::H),
             [IupacBase::A, IupacBase::C, IupacBase::G] => Ok(IupacBase::V),
-            [IupacBase::A, IupacBase::G, IupacBase::C, IupacBase::T] => Ok(IupacBase::N),
-            _ => bail!("Nucleotides did not match any Iupac definitions"),
+            [IupacBase::A, IupacBase::C, IupacBase::G, IupacBase::T] => Ok(IupacBase::N),
+            _ => bail!(
+                "Nucleotides [{}] did not match any Iupac definitions",
+                bases
+                    .iter()
+                    .map(IupacBase::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
         }
     }
 }
