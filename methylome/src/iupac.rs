@@ -27,12 +27,12 @@ use anyhow::bail;
 /// # References
 /// Based on IUPAC nucleotide code conventions.
 /// For more details, see: https://en.wikipedia.org/wiki/Nucleic_acid_notation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IupacBase {
     A,
-    T,
-    G,
     C,
+    G,
+    T,
     R,
     Y,
     S,
@@ -240,6 +240,46 @@ impl IupacBase {
             IupacBase::H => vec![IupacBase::A, IupacBase::C, IupacBase::T],
             IupacBase::V => vec![IupacBase::A, IupacBase::C, IupacBase::G],
             IupacBase::N => vec![IupacBase::A, IupacBase::T, IupacBase::G, IupacBase::C],
+        }
+    }
+
+    /// Converts the a vec![IupacBase] into its corresponding single IupacBase
+    /// representation.
+    ///
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::IupacBase;
+    ///
+    /// let mut nucs = std::collections::HashSet::new();
+    /// nucs.insert(IupacBase::A);
+    /// nucs.insert(IupacBase::C);
+    ///
+    /// let nuc = IupacBase::from_nucleotides(&nucs).unwrap();
+    /// assert_eq!(nuc, IupacBase::M);
+    /// ```
+    pub fn from_nucleotides(
+        nucs: &std::collections::HashSet<IupacBase>,
+    ) -> anyhow::Result<IupacBase> {
+        let mut bases: Vec<IupacBase> = nucs.iter().copied().collect();
+        bases.sort();
+        match &bases[..] {
+            [IupacBase::A] => Ok(IupacBase::A),
+            [IupacBase::T] => Ok(IupacBase::T),
+            [IupacBase::G] => Ok(IupacBase::G),
+            [IupacBase::C] => Ok(IupacBase::C),
+            [IupacBase::A, IupacBase::G] => Ok(IupacBase::R),
+            [IupacBase::C, IupacBase::T] => Ok(IupacBase::Y),
+            [IupacBase::C, IupacBase::G] => Ok(IupacBase::S),
+            [IupacBase::A, IupacBase::T] => Ok(IupacBase::W),
+            [IupacBase::G, IupacBase::T] => Ok(IupacBase::K),
+            [IupacBase::A, IupacBase::C] => Ok(IupacBase::M),
+            [IupacBase::C, IupacBase::G, IupacBase::T] => Ok(IupacBase::B),
+            [IupacBase::A, IupacBase::G, IupacBase::T] => Ok(IupacBase::D),
+            [IupacBase::A, IupacBase::C, IupacBase::T] => Ok(IupacBase::H),
+            [IupacBase::A, IupacBase::C, IupacBase::G] => Ok(IupacBase::V),
+            [IupacBase::A, IupacBase::G, IupacBase::C, IupacBase::T] => Ok(IupacBase::N),
+            _ => bail!("Nucleotides did not match any Iupac definitions"),
         }
     }
 }
