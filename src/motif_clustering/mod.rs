@@ -51,54 +51,74 @@ impl UnionFind {
     }
 }
 
-fn levenshtein_distance(s1: &Motif, s2: &Motif) -> usize {
-    let m = s1.sequence.len();
-    let n = s2.sequence.len();
+fn edit_distance(m1: &Motif, m2: &Motif) -> usize {
+    // Line motifs according to modified base
+    let mod_position_offset = m1.mod_position as i8 - m2.mod_position as i8;
+    let mod_position_offset_abs = mod_position_offset.abs() as usize;
+    let length_diff = m1.sequence.len() as i8 - m2.sequence.len() as i8;
+    let length_diff_abs = length_diff.abs() as usize;
 
-    // let mod1 = s1.mod_position as usize;
-    // let mod2 = s2.mod_position as usize;
+    let score = if mod_position_offset == 0 && length_diff == 0 {
+        hamming_distance(&m1, &m2)
+    } else if mod_position_offset != 0 && length_diff == 0 {
+        // CCWG & CWGG
+        let mut m1_extended = m1.clone();
+        let mut m2_extended = m2.clone();
 
-    let mut dp: Vec<Vec<usize>> = vec![vec![0; n + 1]; m + 1];
-    // let big_cost = 9999 as usize;
-
-    // Populate the matrix sides
-    for i in 0..(m + 1) {
-        dp[i][0] = i
-    }
-    for j in 0..(n + 1) {
-        dp[0][j] = j
-    }
-
-    for i in 1..(m + 1) {
-        for j in 1..(n + 1) {
-            let p1 = s1.sequence[i - 1].to_possible_nucleotides();
-            let p2 = s2.sequence[j - 1].to_possible_nucleotides();
-            let cost = {
-                if p1.iter().any(|x| p2.contains(x)) {
-                    0
-                } else {
-                    1
-                }
-            };
-
-            let del = dp[i - 1][j] + 1;
-            let ins = dp[i][j - 1] + 1;
-            let sub = dp[i - 1][j - 1] + cost;
-
-            // if (i - 1 == mod1) && (j - 1 != mod2) {
-            //     del = big_cost;
-            //     ins = big_cost;
-            //     sub = big_cost;
-            // } else if (j - 1 == mod2) && (i - 1 != mod1) {
-            //     del = big_cost;
-            //     ins = big_cost;
-            //     sub = big_cost;
-            // }
-
-            dp[i][j] = *[del, ins, sub].iter().min().unwrap();
+        if mod_position_offset > 0 {
+            m1_extended.extend_motif_with_n(mod_position_offset_abs);
+            m2_extended.prepend_n(mod_position_offset_abs);
+        } else {
+            m1_extended.prepend_n(mod_position_offset_abs);
+            m2_extended.extend_motif_with_n(mod_position_offset_abs);
         }
+
+        // N has a penalty of 0.5 but since an offset will always result in two Ns,
+        // mod_position_offset_abs is just added.
+        hamming_distance(&m1_extended, &m2_extended) + mod_position_offset_abs
+    } else if mod_position_offset == 0 && length_diff != 0 {
+        let mut m1_extended = m1.clone();
+        let mut m2_extended = m2.clone();
+
+        if length_diff > 0 {
+            m2_extended.extend_motif_with_n(length_diff_abs);
+        } else {
+            m1_extended.extend_motif_with_n(length_diff_abs);
+        }
+        hamming_distance(&m1_extended, &m2_extended)
+    } else {
+        100
+    };
+    score
+}
+
+fn hamming_distance(s1: &Motif, s2: &Motif) -> usize {
+    if s1.sequence.len() != s2.sequence.len() {
+        panic!("Motif sequences should have the same length");
     }
-    dp[m][n]
+    if s1.mod_position != s2.mod_position {
+        panic!("Motifs should have the same mod_position");
+    }
+    if s1.mod_type != s2.mod_type {
+        panic!("Motifs should have the same mod_type");
+    }
+
+    s1.sequence
+        .iter()
+        .zip(&s2.sequence)
+        .fold(0, |score, (base1, base2)| {
+            let possible_nucleotides_1 = base1.to_possible_nucleotides();
+            let possible_nucleotides_2 = base2.to_possible_nucleotides();
+
+            if possible_nucleotides_1
+                .iter()
+                .any(|x| possible_nucleotides_2.contains(x))
+            {
+                score
+            } else {
+                score + 1
+            }
+        })
 }
 
 fn cluster_motifs(motifs: &[Motif]) -> UnionFind {
@@ -111,7 +131,7 @@ fn cluster_motifs(motifs: &[Motif]) -> UnionFind {
                 continue;
             } else if motifs[i].is_child_motif(&motifs[j])
                 || motifs[j].is_child_motif(&motifs[i])
-                || levenshtein_distance(&motifs[i], &motifs[j]) <= 1
+                || edit_distance(&motifs[i], &motifs[j]) <= 1
             {
                 uf.union(i, j)
             }
@@ -143,7 +163,8 @@ fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
             return Err(anyhow!("Not all motifs have the same modification"));
         } else if m.mod_position != first_motif.mod_position {
             return Err(anyhow!(
-                "Motifs does not have the same mod_position. Cannot create final motif"
+                "Motifs does not have the same mod_position. Cannot create final motif: {:#?}",
+                motifs
             ));
         }
     }
@@ -152,7 +173,9 @@ fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
     for i in 0..n_bases {
         let mut nucs = HashSet::new();
         for motif in motifs {
-            nucs.insert(motif.sequence[i]);
+            for possible_nuc in motif.sequence[i].to_possible_nucleotides() {
+                nucs.insert(possible_nuc);
+            }
         }
         let unified_base = IupacBase::from_nucleotides(&nucs)?;
         sequence.push(unified_base);
@@ -261,35 +284,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_levenshtein_distance_same_length() {
+    fn test_edit_distance_same_length_same_mod_pos() {
         let m1 = Motif::new("GATCC", "m", 3).unwrap();
         let m2 = Motif::new("GATCG", "m", 3).unwrap();
         let m3 = Motif::new("GTTCT", "m", 3).unwrap();
 
-        let d1 = levenshtein_distance(&m1, &m2);
+        let d1 = edit_distance(&m1, &m2);
         assert_eq!(d1, 1);
-        let d2 = levenshtein_distance(&m1, &m3);
+        let d2 = edit_distance(&m1, &m3);
         assert_eq!(d2, 2);
-        let d3 = levenshtein_distance(&m1, &m1);
+        let d3 = edit_distance(&m1, &m1);
         assert_eq!(d3, 0);
     }
 
     #[test]
-    fn test_levenshtein_distance_different_length() {
+    fn test_edit_distance_different_length_same_mod_pos() {
         let m1 = Motif::new("GATCC", "m", 3).unwrap();
         let m2 = Motif::new("GATC", "m", 3).unwrap();
 
-        let d = levenshtein_distance(&m1, &m2);
+        let d = edit_distance(&m1, &m2);
         assert_eq!(d, 0);
     }
 
     #[test]
-    fn test_levenshtein_distance_ambiguous_bases() {
-        let m1 = Motif::new("GATCR", "m", 3).unwrap();
-        let m2 = Motif::new("GATCG", "m", 3).unwrap();
+    fn test_edit_distance_same_length_diff_mod_pos() {
+        let m1 = Motif::new("CCWG", "m", 1).unwrap();
+        let m2 = Motif::new("CWGG", "m", 0).unwrap();
 
-        let d = levenshtein_distance(&m1, &m2);
-        assert_eq!(d, 0);
+        let d = edit_distance(&m1, &m2);
+        assert_eq!(d, 1);
+    }
+    #[test]
+    fn test_edit_distance_diff_length_diff_mod_pos() {
+        let m1 = Motif::new("CCCCWG", "m", 1).unwrap();
+        let m2 = Motif::new("CWGG", "m", 0).unwrap();
+
+        let d = edit_distance(&m1, &m2);
+        assert_eq!(d, 100);
     }
 
     // #[test]
