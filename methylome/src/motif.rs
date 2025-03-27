@@ -229,6 +229,43 @@ impl Motif {
 
         false
     }
+
+    /// Extend motif with N's
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
+    ///
+    /// motif.extend_motif_with_n(2);
+    /// assert_eq!(motif.sequence_to_string(), "GATCNN");
+    /// assert_eq!(motif.mod_position, 1);
+    /// ```
+    pub fn extend_motif_with_n(&mut self, n: usize) -> &mut Self {
+        self.sequence
+            .extend(std::iter::repeat(IupacBase::N).take(n));
+        self
+    }
+    /// Extend motif with N's
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
+    ///
+    /// motif.prepend_n(2);
+    /// assert_eq!(motif.sequence_to_string(), "NNGATC");
+    /// assert_eq!(motif.mod_position, 3);
+    /// ```
+    pub fn prepend_n(&mut self, n: usize) -> &mut Self {
+        let ns = vec![IupacBase::N; n];
+
+        self.sequence.splice(0..0, ns.iter().cloned());
+        self.mod_position = self.mod_position + n as u8;
+        self
+    }
 }
 
 #[cfg(test)]
