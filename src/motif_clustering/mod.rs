@@ -1,7 +1,11 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use log::info;
-use methylome::Motif;
-use std::{collections::HashMap, path::Path};
+use methylome::{IupacBase, Motif};
+use std::{
+    collections::{HashMap, HashSet},
+    io::{BufWriter, Write},
+    path::Path,
+};
 
 pub mod args;
 
@@ -128,10 +132,51 @@ fn group_motifs_by_set(uf: &mut UnionFind, motifs: &[Motif]) -> HashMap<usize, V
     map
 }
 
-pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
-    let output_path = Path::new(&args.output);
+fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
+    let first_motif = motifs[0].clone();
+    let n_bases = first_motif.sequence.len();
 
-    create_output_file(output_path)?;
+    for m in motifs {
+        if m.sequence.len() != n_bases {
+            return Err(anyhow!("Not all motifs have the same length"));
+        } else if m.mod_type != first_motif.mod_type {
+            return Err(anyhow!("Not all motifs have the same modification"));
+        } else if m.mod_position != first_motif.mod_position {
+            return Err(anyhow!(
+                "Motifs does not have the same mod_position. Cannot create final motif"
+            ));
+        }
+    }
+
+    let mut sequence = Vec::with_capacity(n_bases);
+    for i in 0..n_bases {
+        let mut nucs = HashSet::new();
+        for motif in motifs {
+            nucs.insert(motif.sequence[i]);
+        }
+        let unified_base = IupacBase::from_nucleotides(&nucs)?;
+        sequence.push(unified_base);
+    }
+
+    let seq = sequence
+        .iter()
+        .map(IupacBase::to_string)
+        .collect::<Vec<_>>()
+        .join("");
+
+    let final_motif = Motif::new(
+        seq.as_str(),
+        first_motif.mod_type.to_pileup_code(),
+        first_motif.mod_position,
+    )?;
+
+    Ok(final_motif)
+}
+
+pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
+    let outpath = Path::new(&args.output);
+
+    create_output_file(outpath)?;
 
     let motifs = match args.motifs {
         Some(motifs) => {
@@ -150,9 +195,9 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
     // Should be the smallest
     // In case several have the same lenght
     // they should be collapsed
-    let motif_cluster_representatives = HashMap::new();
+    let mut motif_cluster_representatives = HashMap::new();
 
-    for (cluster, motifs_in_cluster) in motif_clusters {
+    for (_cluster, motifs_in_cluster) in motif_clusters {
         let min_motif = motifs_in_cluster
             .iter()
             .map(|m| m.sequence.len())
@@ -160,12 +205,52 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
             .unwrap();
         let smallest_motifs = motifs_in_cluster
             .iter()
+            .cloned()
             .filter(|m| m.sequence.len() == min_motif)
             .collect::<Vec<_>>();
 
-        println!("{}: {:#?}", cluster, smallest_motifs);
+        let representative_motif = if smallest_motifs.len() > 1 {
+            collapse_motifs(&smallest_motifs)?
+        } else {
+            smallest_motifs[0].clone()
+        };
+
+        motif_cluster_representatives.insert(representative_motif, motifs_in_cluster);
     }
 
+    println!("{:#?}", motif_cluster_representatives);
+    let outfile = std::fs::File::create(outpath)
+        .with_context(|| format!("Failed to create file at: {:?}", outpath))?;
+    let mut writer = BufWriter::new(outfile);
+
+    writeln!(
+        writer,
+        "motif_representative\tmod_type_representative\tmod_position_representative\tmotif\tmod_type\tmod_position"
+    )?;
+
+    for (rep, motifs) in motif_cluster_representatives {
+        let rep_motif_sequence = rep.sequence_to_string();
+        let rep_mod_type_str = rep.mod_type.to_pileup_code();
+        let rep_mod_position = rep.mod_position;
+
+        for motif in motifs {
+            let motif_sequence = motif.sequence_to_string();
+            let mod_type_str = motif.mod_type.to_pileup_code();
+            let mod_position = motif.mod_position;
+
+            writeln!(
+                writer,
+                "{}\t{}\t{}\t{}\t{}\t{}",
+                rep_motif_sequence,
+                rep_mod_type_str,
+                rep_mod_position,
+                motif_sequence,
+                mod_type_str,
+                mod_position,
+            )?;
+            writer.flush()?;
+        }
+    }
     Ok(())
 }
 
