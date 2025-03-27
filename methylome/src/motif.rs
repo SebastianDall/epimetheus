@@ -82,6 +82,15 @@ impl Motif {
             }
         }
 
+        if parsed_sequence.first() == Some(&IupacBase::N)
+            || parsed_sequence.last() == Some(&IupacBase::N)
+        {
+            bail!(
+                "Motif sequence starts or ends with N, which is invalid: {}",
+                sequence
+            );
+        }
+
         Ok(Self {
             sequence: parsed_sequence,
             mod_type,
@@ -265,6 +274,25 @@ mod tests {
         assert_eq!(
             result.unwrap_err().to_string(),
             "mod_position 3 points to base 'G' which is invalid for 5mC (m) modification type."
+        );
+    }
+
+    #[test]
+    fn test_motif_starts_with_n() {
+        let result = Motif::new("NATGC", "m", 4);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Motif sequence starts or ends with N, which is invalid: NATGC",
+        );
+    }
+    #[test]
+    fn test_motif_ends_with_n() {
+        let result = Motif::new("ATGCN", "m", 3);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Motif sequence starts or ends with N, which is invalid: ATGCN",
         );
     }
 
