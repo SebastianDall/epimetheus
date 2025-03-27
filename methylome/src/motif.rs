@@ -9,7 +9,7 @@ use std::str::FromStr;
 /// - `sequence`: A vector of IUPAC bases representing the motif sequence.
 /// - `mod_type`: The type of modification (e.g., 6mA, 5mC).
 /// - `mod_position`: The position of the modification within the sequence (0-indexed).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Motif {
     pub sequence: Vec<IupacBase>,
     pub mod_type: ModType,
