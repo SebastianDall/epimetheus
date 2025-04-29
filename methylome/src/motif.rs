@@ -385,4 +385,13 @@ mod tests {
         assert_eq!(motif1.to_regex(), "GATC");
         assert_eq!(motif2.to_regex(), "[AG]GATC[CT]");
     }
+
+    #[test]
+    fn test_is_child_motif() {
+        let parent = Motif::new("GATC", "m", 3).unwrap();
+        let child = Motif::new("RGATCY", "m", 4).unwrap();
+
+        assert!(parent.is_child_motif(&child));
+        assert!(!child.is_child_motif(&parent));
+    }
 }
