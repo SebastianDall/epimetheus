@@ -58,38 +58,43 @@ fn edit_distance(m1: &Motif, m2: &Motif) -> usize {
     let length_diff = m1.sequence.len() as i8 - m2.sequence.len() as i8;
     let length_diff_abs = length_diff.abs() as usize;
 
-    let score = if mod_position_offset == 0 && length_diff == 0 {
-        hamming_distance(&m1, &m2)
-    } else if mod_position_offset != 0 && length_diff == 0 {
-        // CCWG & CWGG
-        let mut m1_extended = m1.clone();
-        let mut m2_extended = m2.clone();
-
-        if mod_position_offset > 0 {
-            m1_extended.extend_motif_with_n(mod_position_offset_abs);
-            m2_extended.prepend_n(mod_position_offset_abs);
-        } else {
-            m1_extended.prepend_n(mod_position_offset_abs);
-            m2_extended.extend_motif_with_n(mod_position_offset_abs);
-        }
-
-        // N has a penalty of 0.5 but since an offset will always result in two Ns,
-        // mod_position_offset_abs is just added.
-        hamming_distance(&m1_extended, &m2_extended) + mod_position_offset_abs
-    } else if mod_position_offset == 0 && length_diff != 0 {
-        let mut m1_extended = m1.clone();
-        let mut m2_extended = m2.clone();
-
-        if length_diff > 0 {
-            m2_extended.extend_motif_with_n(length_diff_abs);
-        } else {
-            m1_extended.extend_motif_with_n(length_diff_abs);
-        }
-        hamming_distance(&m1_extended, &m2_extended)
+    if mod_position_offset == 0 && length_diff == 0 {
+        return hamming_distance(&m1, &m2);
     } else {
-        100
-    };
-    score
+        return 100;
+    }
+
+    // let mut m1_extended = m1.clone();
+    // let mut m2_extended = m2.clone();
+
+    // if mod_position_offset != 0 && length_diff == 0 {
+    //     // CCWG & CWGG
+    //     // CCWGN NCWGG
+
+    //     if mod_position_offset > 0 {
+    //         m1_extended.extend_motif_with_n(mod_position_offset_abs);
+    //         m2_extended.prepend_n(mod_position_offset_abs);
+    //     } else {
+    //         m1_extended.prepend_n(mod_position_offset_abs);
+    //         m2_extended.extend_motif_with_n(mod_position_offset_abs);
+    //     }
+
+    //     // N has a penalty of 0.5 but since an offset will always result in two Ns,
+    //     // mod_position_offset_abs is just added.
+    //     // WARN this is too hard to merge. Distance should be high!
+    //     // return hamming_distance(&m1_extended, &m2_extended) + mod_position_offset_abs;
+    //     return 100;
+    // } else if mod_position_offset == 0 && length_diff != 0 {
+    //     if length_diff > 0 {
+    //         m2_extended.extend_motif_with_n(length_diff_abs);
+    //     } else {
+    //         m1_extended.extend_motif_with_n(length_diff_abs);
+    //     }
+    //     return hamming_distance(&m1_extended, &m2_extended);
+    // } else {
+    //     // Mod position and length are different
+    //     return 100;
+    // };
 }
 
 fn hamming_distance(s1: &Motif, s2: &Motif) -> usize {
@@ -121,7 +126,7 @@ fn hamming_distance(s1: &Motif, s2: &Motif) -> usize {
         })
 }
 
-fn cluster_motifs(motifs: &[Motif]) -> UnionFind {
+fn cluster_motifs(motifs: &[Motif], with_edit: bool) -> UnionFind {
     let n = motifs.len();
     let mut uf = UnionFind::new(n);
 
@@ -129,11 +134,15 @@ fn cluster_motifs(motifs: &[Motif]) -> UnionFind {
         for j in i + 1..n {
             if motifs[i].mod_type != motifs[j].mod_type {
                 continue;
-            } else if motifs[i].is_child_motif(&motifs[j])
-                || motifs[j].is_child_motif(&motifs[i])
-                || edit_distance(&motifs[i], &motifs[j]) <= 1
-            {
-                uf.union(i, j)
+            }
+
+            let should_union = (with_edit && edit_distance(&motifs[i], &motifs[j]) <= 1);
+            // let should_union = motifs[i].is_child_motif(&motifs[j])
+            //     || motifs[j].is_child_motif(&motifs[i])
+            //     || (with_edit && edit_distance(&motifs[i], &motifs[j]) <= 1);
+
+            if should_union {
+                uf.union(i, j);
             }
         }
     }
@@ -211,7 +220,7 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
         }
     };
 
-    let mut uf = cluster_motifs(&motifs);
+    let mut uf = cluster_motifs(&motifs, true);
     let motif_clusters = group_motifs_by_set(&mut uf, &motifs);
 
     // Within cluster find best candidate motif
@@ -232,16 +241,20 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
             .filter(|m| m.sequence.len() == min_motif)
             .collect::<Vec<_>>();
 
-        let representative_motif = if smallest_motifs.len() > 1 {
-            collapse_motifs(&smallest_motifs)?
-        } else {
-            smallest_motifs[0].clone()
-        };
+        if smallest_motifs.len() > 1 {
+            let mut rep_cluster = cluster_motifs(&smallest_motifs, true);
+            let rep_motif_clusters = group_motifs_by_set(&mut rep_cluster, &smallest_motifs);
 
-        motif_cluster_representatives.insert(representative_motif, motifs_in_cluster);
+            for (_rep_cluster, rep_motifs_in_cluster) in rep_motif_clusters {
+                let rep_motif = collapse_motifs(&rep_motifs_in_cluster)?;
+                motif_cluster_representatives.insert(rep_motif, motifs_in_cluster.clone());
+            }
+        } else {
+            let rep_motif = smallest_motifs[0].clone();
+            motif_cluster_representatives.insert(rep_motif, motifs_in_cluster);
+        }
     }
 
-    println!("{:#?}", motif_cluster_representatives);
     let outfile = std::fs::File::create(outpath)
         .with_context(|| format!("Failed to create file at: {:?}", outpath))?;
     let mut writer = BufWriter::new(outfile);
@@ -323,12 +336,25 @@ mod tests {
         assert_eq!(d, 100);
     }
 
-    // #[test]
-    // fn test_levenshtein_distance_mod_position_unreachable_big_cost() {
-    //     let m1 = Motif::new("CCWGG", "m", 1).unwrap();
-    //     let m2 = Motif::new("GATCG", "m", 3).unwrap();
+    #[test]
+    fn test_union_find() {
+        let motif1 = Motif::new("AGCT", "m", 2).unwrap();
+        let motif2 = Motif::new("CGAC", "m", 3).unwrap();
+        let motif3 = Motif::new("CGCC", "m", 2).unwrap();
+        let motif4 = Motif::new("CGTC", "m", 3).unwrap();
+        let motif5 = Motif::new("CGWC", "m", 3).unwrap();
+        let motif6 = Motif::new("GAGC", "m", 3).unwrap();
+        let motif7 = Motif::new("GTAC", "m", 3).unwrap();
+        let motif8 = Motif::new("GTGC", "m", 3).unwrap();
 
-    //     let d = levenshtein_distance(&m1, &m2);
-    //     assert_eq!(d, 3);
-    // }
+        let motifs = vec![
+            motif1, motif2, motif3, motif4, motif5, motif6, motif7, motif8,
+        ];
+
+        let mut uf = cluster_motifs(&motifs, true);
+        let clusters = group_motifs_by_set(&mut uf, &motifs);
+
+        println!("{:#?}", clusters);
+        assert!(false);
+    }
 }
