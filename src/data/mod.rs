@@ -175,15 +175,19 @@ mod tests {
         for res in rdr.records() {
             let record = res?;
 
-            let n_valid_cov_str = record.get(9).unwrap();
-            let n_valid_cov = n_valid_cov_str.parse().unwrap();
+            // let n_valid_cov_str = record.get(9).unwrap();
+            // let n_valid_cov = n_valid_cov_str.parse::<u32>().unwrap();
 
-            if n_valid_cov < 3 {
-                continue;
-            }
-            let meth_record =
-                parse_to_methylation_record("contig_3".to_string(), n_valid_cov, &record).unwrap();
-            workspace_builder.add_record(meth_record).unwrap();
+            // if n_valid_cov < 3 {
+            //     continue;
+            // }
+            let meth_record = parse_to_methylation_record("contig_3".to_string(), &record, 3, 0.8);
+            let meth = match meth_record {
+                Ok(Some(m)) => m,
+                Ok(None) => continue,
+                Err(e) => return Err(e),
+            };
+            workspace_builder.add_record(meth).unwrap();
         }
 
         let mut workspace = workspace_builder.build();
@@ -242,11 +246,9 @@ mod tests {
         for res in rdr.records() {
             let record = res.unwrap();
 
-            let n_valid_cov_str = record.get(9).unwrap();
-            let n_valid_cov = n_valid_cov_str.parse().unwrap();
             let meth_record =
-                parse_to_methylation_record("contig_1".to_string(), n_valid_cov, &record).unwrap();
-            let result = workspace_builder.add_record(meth_record);
+                parse_to_methylation_record("contig_1".to_string(), &record, 3, 0.8).unwrap();
+            let result = workspace_builder.add_record(meth_record.unwrap());
             assert!(result.is_err());
         }
     }

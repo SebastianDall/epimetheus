@@ -180,9 +180,9 @@ mod tests {
             let n_valid_cov_str = record.get(9).unwrap();
             let n_valid_cov = n_valid_cov_str.parse().unwrap();
             let meth_record =
-                parse_to_methylation_record("contig_3".to_string(), n_valid_cov, &record)
+                parse_to_methylation_record("contig_3".to_string(), &record, n_valid_cov, 0.8)
                     .unwrap();
-            workspace_builder.add_record(meth_record).unwrap();
+            workspace_builder.add_record(meth_record.unwrap()).unwrap();
         }
 
         let workspace = workspace_builder.build();

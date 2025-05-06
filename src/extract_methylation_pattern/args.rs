@@ -35,4 +35,13 @@ pub struct MethylationPatternArgs {
         help = "Number of contigs to process at a time. Higher number will use more RAM."
     )]
     pub batch_size: usize,
+
+    #[arg(
+        long,
+        default_value_t = 0.8,
+        help = "Required fraction of valid coverage relative to different read mapping. N_valid_cov / (N_valid_cov + N_diff)"
+    )]
+    pub min_valid_cov_to_diff_fraction: f32,
+    // #[arg(long, default_value_t = 0.9, help = "Maximum failed fraction relative to valid coverage. N_valid_cov / (N_valid_cov + N_diff)")]
+    // pub : f32,
 }

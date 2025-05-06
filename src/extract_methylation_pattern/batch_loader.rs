@@ -12,6 +12,7 @@ pub struct BatchLoader<R> {
     assembly: AHashMap<String, Contig>,
     batch_size: usize,
     min_valid_read_coverage: u32,
+    min_valid_cov_to_diff_fraction: f32,
 
     current_contig_id: Option<String>,
     current_contig: Option<Contig>,
@@ -24,6 +25,7 @@ impl<R: BufRead> BatchLoader<R> {
         assembly: AHashMap<String, Contig>,
         batch_size: usize,
         min_valid_read_coverage: u32,
+        min_valid_cov_to_diff_fraction: f32,
     ) -> Self {
         let rdr = csv::ReaderBuilder::new()
             .has_headers(false)
@@ -43,6 +45,7 @@ impl<R: BufRead> BatchLoader<R> {
             assembly,
             batch_size: size,
             min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
             current_contig_id: None,
             current_contig: None,
             contigs_loaded_in_batch: 0,
@@ -61,18 +64,6 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
                 Ok(r) => r,
                 Err(e) => return Some(Err(e)),
             };
-
-            let n_valid_cov: u32 = match record.get(9) {
-                Some(f) => match f.parse() {
-                    Ok(v) => v,
-                    Err(_) => return Some(Err(anyhow!("Invalid coverage number"))),
-                },
-                None => return Some(Err(anyhow!("Invalid coverage field"))),
-            };
-
-            if n_valid_cov < self.min_valid_read_coverage {
-                continue;
-            }
 
             let contig_id = match record.get(0) {
                 Some(id) => id.to_string(),
@@ -116,8 +107,14 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
                 };
                 self.current_contig = Some(new_contig);
             }
-            let meth = match parse_to_methylation_record(contig_id, n_valid_cov, &record) {
-                Ok(m) => m,
+            let meth = match parse_to_methylation_record(
+                contig_id,
+                &record,
+                self.min_valid_read_coverage,
+                self.min_valid_cov_to_diff_fraction,
+            ) {
+                Ok(Some(m)) => m,
+                Ok(None) => continue,
                 Err(e) => return Some(Err(e)),
             };
             if let Some(ref mut c) = self.current_contig {
@@ -187,7 +184,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 1, 1);
+        let batch_loader = BatchLoader::new(reader, assembly, 1, 1, 0.8);
 
         for ws in batch_loader {
             let workspace = ws?.get_workspace();
@@ -248,7 +245,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 1, 1);
+        let batch_loader = BatchLoader::new(reader, assembly, 1, 1, 0.8);
 
         let mut num_batches = 0;
         for ws in batch_loader {
@@ -305,7 +302,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 2, 1);
+        let batch_loader = BatchLoader::new(reader, assembly, 2, 1, 0.8);
 
         for ws in batch_loader {
             assert!(ws.is_err());
@@ -350,7 +347,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 2, 1);
+        let batch_loader = BatchLoader::new(reader, assembly, 2, 1, 0.8);
 
         let result = std::panic::catch_unwind(|| {
             for ws in batch_loader {

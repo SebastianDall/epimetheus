@@ -6,9 +6,10 @@ use crate::data::{methylation::MethylationCoverage, MethylationRecord};
 
 pub fn parse_to_methylation_record(
     contig: String,
-    n_valid_cov: u32,
     record: &StringRecord,
-) -> Result<MethylationRecord> {
+    min_valid_read_coverage: u32,
+    min_valid_cov_to_diff_fraction: f32,
+) -> Result<Option<MethylationRecord>> {
     let position: usize = record
         .get(1)
         .ok_or_else(|| anyhow!("Missing position field."))?
@@ -25,16 +26,46 @@ pub fn parse_to_methylation_record(
         .ok_or_else(|| anyhow!("Missing strand field"))?
         .parse()?;
 
+    let n_valid_cov: u32 = record
+        .get(9)
+        .ok_or_else(|| anyhow!("Missing n_valid_cov field."))?
+        .parse()
+        .map_err(|_| anyhow!("Invalid n_valid_cov field."))?;
+
+    if n_valid_cov < min_valid_read_coverage {
+        return Ok(None);
+    }
     let n_modified: u32 = record
         .get(11)
         .ok_or_else(|| anyhow!("Missing n_modified field."))?
         .parse()
         .map_err(|_| anyhow!("Invalid n_modified field"))?;
 
+    let n_other_mod: u32 = record
+        .get(13)
+        .ok_or_else(|| anyhow!("Missing n_other_mod field."))?
+        .parse()
+        .map_err(|_| anyhow!("Invalid n_other_mod field."))?;
+
+    if n_other_mod > n_modified {
+        return Ok(None);
+    }
+
+    let n_diff: u32 = record
+        .get(16)
+        .ok_or_else(|| anyhow!("Missing n_diff field."))?
+        .parse()
+        .map_err(|_| anyhow!("Invalid n_diff field."))?;
+
+    if (n_valid_cov as f32 / (n_diff as f32 + n_valid_cov as f32)) < min_valid_cov_to_diff_fraction
+    {
+        return Ok(None);
+    }
+
     let methylation = MethylationCoverage::new(n_modified, n_valid_cov)?;
 
     let methylation_record =
         MethylationRecord::new(contig, position, strand, mod_type, methylation);
 
-    Ok(methylation_record)
+    Ok(Some(methylation_record))
 }
