@@ -214,20 +214,16 @@ impl Motif {
         if self.mod_type != child.mod_type {
             return false;
         };
+        if self.sequence.len() > child.sequence.len() { return false;}
 
-        let child_sequences = child.possible_dna_sequences();
-        let child_mod_pos = child.mod_position as usize;
+        // The offset that aligns the two modification sites
+        let mod_offset = child.mod_position as isize - self.mod_position as isize;
+        if mod_offset < 0 { return false;} // parent (self) would stick out of child.
 
-        for seq in child_sequences {
-            let seq_str = seq.iter().map(IupacBase::to_string).collect::<String>();
-            let indices = find_motif_indices_in_contig(&seq_str, self);
+        if mod_offset + self.sequence.len() as isize > child.sequence.len() as isize { return false; }
 
-            if !indices.is_empty() && indices.contains(&child_mod_pos) {
-                return true;
-            }
-        }
-
-        false
+        self.sequence.iter().zip(child.sequence[(mod_offset as usize)..].iter())
+            .all(|(p,c)| p.mask() & c.mask() != 0)
     }
 
     /// Extend motif with N's
