@@ -294,4 +294,25 @@ impl IupacBase {
             ),
         }
     }
+
+
+    pub const fn mask(self) -> u8 {
+        match self {
+            Self::A => 0b0001,
+            Self::T => 0b0010,
+            Self::G => 0b0100,
+            Self::C => 0b1000,
+            Self::R => 0b0101,
+            Self::Y => 0b1010,
+            Self::S => 0b1100,
+            Self::W => 0b0011,
+            Self::K => 0b0110,
+            Self::M => 0b1001,
+            Self::B => 0b1110,
+            Self::D => 0b0111,
+            Self::H => 0b1011,
+            Self::V => 0b1101,
+            Self::N => 0b1111,
+        }
+    }
 }
