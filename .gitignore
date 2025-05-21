@@ -1,3 +1,4 @@
+.direnv
 .helix
 data
 !tests/data/
