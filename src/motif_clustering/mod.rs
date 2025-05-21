@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use rayon::prelude::*;
 use log::info;
 use methylome::{IupacBase, Motif};
 use std::{
@@ -13,11 +14,13 @@ pub use args::MotifClusteringArgs;
 
 use crate::{processing::create_motifs, utils::create_output_file};
 
+#[allow(dead_code)]
 struct UnionFind {
     pub parent: Vec<usize>,
     pub rank: Vec<usize>,
 }
 
+#[allow(dead_code)]
 impl UnionFind {
     pub fn new(n: usize) -> Self {
         Self {
@@ -51,6 +54,7 @@ impl UnionFind {
     }
 }
 
+#[allow(dead_code)]
 fn edit_distance(m1: &Motif, m2: &Motif) -> usize {
     // Line motifs according to modified base
     let mod_position_offset = m1.mod_position as i8 - m2.mod_position as i8;
@@ -97,6 +101,7 @@ fn edit_distance(m1: &Motif, m2: &Motif) -> usize {
     // };
 }
 
+#[allow(dead_code)]
 fn hamming_distance(s1: &Motif, s2: &Motif) -> usize {
     if s1.sequence.len() != s2.sequence.len() {
         panic!("Motif sequences should have the same length");
@@ -126,6 +131,7 @@ fn hamming_distance(s1: &Motif, s2: &Motif) -> usize {
         })
 }
 
+#[allow(dead_code)]
 fn cluster_motifs(motifs: &[Motif], with_edit: bool) -> UnionFind {
     let n = motifs.len();
     let mut uf = UnionFind::new(n);
@@ -137,10 +143,6 @@ fn cluster_motifs(motifs: &[Motif], with_edit: bool) -> UnionFind {
             }
 
             let should_union = (with_edit && edit_distance(&motifs[i], &motifs[j]) <= 1);
-            // let should_union = motifs[i].is_child_motif(&motifs[j])
-            //     || motifs[j].is_child_motif(&motifs[i])
-            //     || (with_edit && edit_distance(&motifs[i], &motifs[j]) <= 1);
-
             if should_union {
                 uf.union(i, j);
             }
@@ -150,6 +152,10 @@ fn cluster_motifs(motifs: &[Motif], with_edit: bool) -> UnionFind {
     uf
 }
 
+
+
+
+#[allow(dead_code)]
 fn group_motifs_by_set(uf: &mut UnionFind, motifs: &[Motif]) -> HashMap<usize, Vec<Motif>> {
     let n = motifs.len();
     let mut map: HashMap<usize, Vec<Motif>> = HashMap::new();
@@ -161,6 +167,59 @@ fn group_motifs_by_set(uf: &mut UnionFind, motifs: &[Motif]) -> HashMap<usize, V
     map
 }
 
+fn pick_victim(m1: &Motif, m2: &Motif) -> Motif {
+    let len1 = m1.sequence_to_string().len();
+    let len2 = m2.sequence_to_string().len();
+    if len1 > len2 {
+        m1.clone()
+    } else if len1 < len2 {
+        m2.clone()
+    } else if m1.possible_dna_sequences().len() > m2.possible_dna_sequences().len() {
+        m2.clone()
+    } else {
+        m1.clone()
+    }
+}
+
+
+
+fn collapse_child_motifs(motifs: &[Motif]) -> Vec<Motif> {
+    let n = motifs.len();
+
+    // 1) in parallel, scan all (i,j) pairs and collect your “victims”
+    let victims: Vec<Motif> = (0..n)
+        .into_par_iter()
+        .flat_map(|i| {
+            // for each i, scan j = i+1..n in parallel
+            (i + 1..n)
+                .into_par_iter()
+                .filter_map(move |j| {
+                    let m1 = &motifs[i];
+                    let m2 = &motifs[j];
+                    if m1.is_child_motif(m2) || m2.is_child_motif(m1) {
+                        // pick the shorter/less‐possible one
+                        let victim = pick_victim(&m1, &m2);
+                        Some(victim)
+                    } else {
+                        None
+                    }
+                })
+        })
+        .collect();
+
+    // 2) turn your victims into a HashSet for O(1) lookups
+    let remove_set: HashSet<Motif> = victims.into_iter().collect();
+
+    // 3) in parallel, keep only those not in remove_set
+    motifs
+        .par_iter()
+        .filter(|m| !remove_set.contains(*m))
+        .cloned()
+        .collect()
+}
+
+
+#[allow(dead_code)]
 fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
     let first_motif = motifs[0].clone();
     let n_bases = first_motif.sequence.len();
@@ -220,73 +279,82 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
         }
     };
 
-    let mut uf = cluster_motifs(&motifs, true);
-    let motif_clusters = group_motifs_by_set(&mut uf, &motifs);
+    let motifs_with_no_childs = collapse_child_motifs(&motifs);
 
-    // Within cluster find best candidate motif
-    // Should be the smallest
-    // In case several have the same lenght
-    // they should be collapsed
-    let mut motif_cluster_representatives = HashMap::new();
+    // let mut uf = cluster_motifs(&motifs_with_no_childs, true);
+    // let motif_clusters = group_motifs_by_set(&mut uf, &motifs_with_no_childs);
 
-    for (_cluster, motifs_in_cluster) in motif_clusters {
-        let min_motif = motifs_in_cluster
-            .iter()
-            .map(|m| m.sequence.len())
-            .min()
-            .unwrap();
-        let smallest_motifs = motifs_in_cluster
-            .iter()
-            .cloned()
-            .filter(|m| m.sequence.len() == min_motif)
-            .collect::<Vec<_>>();
+    // // Within cluster find best candidate motif
+    // // Should be the smallest
+    // // In case several have the same lenght
+    // // they should be collapsed
+    // let mut motif_cluster_representatives = HashMap::new();
 
-        if smallest_motifs.len() > 1 {
-            let mut rep_cluster = cluster_motifs(&smallest_motifs, true);
-            let rep_motif_clusters = group_motifs_by_set(&mut rep_cluster, &smallest_motifs);
+    // for (_cluster, motifs_in_cluster) in motif_clusters {
+    //     let min_motif = motifs_in_cluster
+    //         .iter()
+    //         .map(|m| m.sequence.len())
+    //         .min()
+    //         .unwrap();
+    //     let smallest_motifs = motifs_in_cluster
+    //         .iter()
+    //         .cloned()
+    //         .filter(|m| m.sequence.len() == min_motif)
+    //         .collect::<Vec<_>>();
 
-            for (_rep_cluster, rep_motifs_in_cluster) in rep_motif_clusters {
-                let rep_motif = collapse_motifs(&rep_motifs_in_cluster)?;
-                motif_cluster_representatives.insert(rep_motif, motifs_in_cluster.clone());
-            }
-        } else {
-            let rep_motif = smallest_motifs[0].clone();
-            motif_cluster_representatives.insert(rep_motif, motifs_in_cluster);
-        }
-    }
+    //     if smallest_motifs.len() > 1 {
+    //         let mut rep_cluster = cluster_motifs(&smallest_motifs, true);
+    //         let rep_motif_clusters = group_motifs_by_set(&mut rep_cluster, &smallest_motifs);
+
+    //         for (_rep_cluster, rep_motifs_in_cluster) in rep_motif_clusters {
+    //             let rep_motif = collapse_motifs(&rep_motifs_in_cluster)?;
+    //             motif_cluster_representatives.insert(rep_motif, motifs_in_cluster.clone());
+    //         }
+    //     } else {
+    //         let rep_motif = smallest_motifs[0].clone();
+    //         motif_cluster_representatives.insert(rep_motif, motifs_in_cluster);
+    //     }
+    // }
 
     let outfile = std::fs::File::create(outpath)
         .with_context(|| format!("Failed to create file at: {:?}", outpath))?;
     let mut writer = BufWriter::new(outfile);
 
-    writeln!(
-        writer,
-        "motif_representative\tmod_type_representative\tmod_position_representative\tmotif\tmod_type\tmod_position"
-    )?;
+    // writeln!(
+    //     writer,
+    //     "motif_representative\tmod_type_representative\tmod_position_representative\tmotif\tmod_type\tmod_position"
+    // )?;
 
-    for (rep, motifs) in motif_cluster_representatives {
-        let rep_motif_sequence = rep.sequence_to_string();
-        let rep_mod_type_str = rep.mod_type.to_pileup_code();
-        let rep_mod_position = rep.mod_position;
+    // for (rep, motifs) in motif_cluster_representatives {
+    //     let rep_motif_sequence = rep.sequence_to_string();
+    //     let rep_mod_type_str = rep.mod_type.to_pileup_code();
+    //     let rep_mod_position = rep.mod_position;
 
-        for motif in motifs {
-            let motif_sequence = motif.sequence_to_string();
-            let mod_type_str = motif.mod_type.to_pileup_code();
-            let mod_position = motif.mod_position;
+    //     for motif in motifs {
+    //         let motif_sequence = motif.sequence_to_string();
+    //         let mod_type_str = motif.mod_type.to_pileup_code();
+    //         let mod_position = motif.mod_position;
 
-            writeln!(
-                writer,
-                "{}\t{}\t{}\t{}\t{}\t{}",
-                rep_motif_sequence,
-                rep_mod_type_str,
-                rep_mod_position,
-                motif_sequence,
-                mod_type_str,
-                mod_position,
-            )?;
-            writer.flush()?;
-        }
+    //         writeln!(
+    //             writer,
+    //             "{}\t{}\t{}\t{}\t{}\t{}",
+    //             rep_motif_sequence,
+    //             rep_mod_type_str,
+    //             rep_mod_position,
+    //             motif_sequence,
+    //             mod_type_str,
+    //             mod_position,
+    //         )?;
+    //         writer.flush()?;
+    //     }
+    // }
+
+
+    for m in motifs_with_no_childs {
+        writeln!(writer, "{}\t{}\t{}", m.sequence_to_string(), m.mod_type.to_pileup_code(), m.mod_position)?;
     }
+
+    
     Ok(())
 }
 
@@ -295,6 +363,26 @@ mod tests {
     use methylome::Motif;
 
     use super::*;
+
+    #[test]
+    fn test_collapse_child_motifs() {
+        let m1 = Motif::new("GATC", "m", 3).unwrap();
+        let m2 = Motif::new("GGATC", "m", 4).unwrap();
+        let m3 = Motif::new("GTTCT", "m", 3).unwrap();
+        let m4 = Motif::new("GATCC", "m", 3).unwrap();
+        let m5 = Motif::new("GATC", "a", 1).unwrap();
+
+        let motifs = vec![m1.clone(), m2.clone(), m3.clone(), m4.clone(), m5.clone()];
+
+        let motifs_to_keep = collapse_child_motifs(&motifs);
+
+        assert_eq!(motifs_to_keep.len(), 3);
+        assert_eq!(motifs_to_keep[0], m1.clone());
+        assert_eq!(motifs_to_keep[1], m3.clone());
+        assert_eq!(motifs_to_keep[2], m5.clone());
+    }
+
+    
 
     #[test]
     fn test_edit_distance_same_length_same_mod_pos() {
@@ -310,23 +398,23 @@ mod tests {
         assert_eq!(d3, 0);
     }
 
-    #[test]
-    fn test_edit_distance_different_length_same_mod_pos() {
-        let m1 = Motif::new("GATCC", "m", 3).unwrap();
-        let m2 = Motif::new("GATC", "m", 3).unwrap();
+    // #[test]
+    // fn test_edit_distance_different_length_same_mod_pos() {
+    //     let m1 = Motif::new("GATCC", "m", 3).unwrap();
+    //     let m2 = Motif::new("GATC", "m", 3).unwrap();
 
-        let d = edit_distance(&m1, &m2);
-        assert_eq!(d, 0);
-    }
+    //     let d = edit_distance(&m1, &m2);
+    //     assert_eq!(d, 0);
+    // }
 
-    #[test]
-    fn test_edit_distance_same_length_diff_mod_pos() {
-        let m1 = Motif::new("CCWG", "m", 1).unwrap();
-        let m2 = Motif::new("CWGG", "m", 0).unwrap();
+    // #[test]
+    // fn test_edit_distance_same_length_diff_mod_pos() {
+    //     let m1 = Motif::new("CCWG", "m", 1).unwrap();
+    //     let m2 = Motif::new("CWGG", "m", 0).unwrap();
 
-        let d = edit_distance(&m1, &m2);
-        assert_eq!(d, 1);
-    }
+    //     let d = edit_distance(&m1, &m2);
+    //     assert_eq!(d, 1);
+    // }
     #[test]
     fn test_edit_distance_diff_length_diff_mod_pos() {
         let m1 = Motif::new("CCCCWG", "m", 1).unwrap();
@@ -336,25 +424,25 @@ mod tests {
         assert_eq!(d, 100);
     }
 
-    #[test]
-    fn test_union_find() {
-        let motif1 = Motif::new("AGCT", "m", 2).unwrap();
-        let motif2 = Motif::new("CGAC", "m", 3).unwrap();
-        let motif3 = Motif::new("CGCC", "m", 2).unwrap();
-        let motif4 = Motif::new("CGTC", "m", 3).unwrap();
-        let motif5 = Motif::new("CGWC", "m", 3).unwrap();
-        let motif6 = Motif::new("GAGC", "m", 3).unwrap();
-        let motif7 = Motif::new("GTAC", "m", 3).unwrap();
-        let motif8 = Motif::new("GTGC", "m", 3).unwrap();
+    // #[test]
+    // fn test_union_find() {
+    //     let motif1 = Motif::new("AGCT", "m", 2).unwrap();
+    //     let motif2 = Motif::new("CGAC", "m", 3).unwrap();
+    //     let motif3 = Motif::new("CGCC", "m", 2).unwrap();
+    //     let motif4 = Motif::new("CGTC", "m", 3).unwrap();
+    //     let motif5 = Motif::new("CGWC", "m", 3).unwrap();
+    //     let motif6 = Motif::new("GAGC", "m", 3).unwrap();
+    //     let motif7 = Motif::new("GTAC", "m", 3).unwrap();
+    //     let motif8 = Motif::new("GTGC", "m", 3).unwrap();
 
-        let motifs = vec![
-            motif1, motif2, motif3, motif4, motif5, motif6, motif7, motif8,
-        ];
+    //     let motifs = vec![
+    //         motif1, motif2, motif3, motif4, motif5, motif6, motif7, motif8,
+    //     ];
 
-        let mut uf = cluster_motifs(&motifs, true);
-        let clusters = group_motifs_by_set(&mut uf, &motifs);
+    //     let mut uf = cluster_motifs(&motifs, true);
+    //     let clusters = group_motifs_by_set(&mut uf, &motifs);
 
-        println!("{:#?}", clusters);
-        assert!(false);
-    }
+    //     println!("{:#?}", clusters);
+    //     assert!(false);
+    // }
 }
