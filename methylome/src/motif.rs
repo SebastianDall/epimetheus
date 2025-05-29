@@ -1,4 +1,4 @@
-use crate::{find_motif_indices_in_contig, IupacBase, ModType};
+use crate::{IupacBase, ModType};
 use anyhow::{bail, Result};
 use std::str::FromStr;
 
