@@ -9,7 +9,7 @@ use std::str::FromStr;
 /// - `sequence`: A vector of IUPAC bases representing the motif sequence.
 /// - `mod_type`: The type of modification (e.g., 6mA, 5mC).
 /// - `mod_position`: The position of the modification within the sequence (0-indexed).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Motif {
     pub sequence: Vec<IupacBase>,
     pub mod_type: ModType,
@@ -82,6 +82,15 @@ impl Motif {
             }
         }
 
+        if parsed_sequence.first() == Some(&IupacBase::N)
+            || parsed_sequence.last() == Some(&IupacBase::N)
+        {
+            bail!(
+                "Motif sequence starts or ends with N, which is invalid: {}",
+                sequence
+            );
+        }
+
         Ok(Self {
             sequence: parsed_sequence,
             mod_type,
@@ -150,6 +159,109 @@ impl Motif {
     pub fn sequence_to_string(&self) -> String {
         self.sequence.iter().map(IupacBase::to_string).collect()
     }
+
+    /// Converts a motif sequence into its possible raw DNA sequences.
+    ///
+    /// Degenerate bases are converted to its corresponding actual nucleotides
+    /// and a vector stores all the possible DNA sequences.
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let motif = Motif::new("GATCY", "m", 3).unwrap();
+    /// let sequences = motif.possible_dna_sequences();
+    /// let possible_seq = vec![
+    ///     vec![IupacBase::G, IupacBase::A, IupacBase::T, IupacBase::C, IupacBase::C],
+    ///     vec![IupacBase::G, IupacBase::A, IupacBase::T, IupacBase::C, IupacBase::T]
+    /// ];
+    /// assert_eq!(sequences, possible_seq);
+    /// ```
+    pub fn possible_dna_sequences(&self) -> Vec<Vec<IupacBase>> {
+        let mut sequences = vec![Vec::new()];
+
+        for base in &self.sequence {
+            let nucleotides = base.to_possible_nucleotides();
+            let mut new_sequences = Vec::new();
+            for seq in &sequences {
+                for nuc in &nucleotides {
+                    let mut new_seq = seq.clone();
+                    new_seq.push(*nuc);
+                    new_sequences.push(new_seq);
+                }
+            }
+            sequences = new_sequences;
+        }
+        sequences
+    }
+
+    /// Checks if current motif is the parent motif of another motif
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, find_motif_indices_in_contig, Motif};
+    ///
+    /// let parent = Motif::new("GATC", "a", 1).unwrap();
+    /// let child = Motif::new("RGATCY", "a", 2).unwrap();
+    ///
+    /// let parent2 = Motif::new("CCNGG", "m", 0).unwrap();
+    /// let not_child = Motif::new("CCWGG", "m", 1).unwrap();
+    ///
+    /// assert!(parent.is_child_motif(&child));
+    /// assert!(!parent2.is_child_motif(&not_child));
+    /// ```
+    pub fn is_child_motif(&self, child: &Motif) -> bool {
+        if self.mod_type != child.mod_type {
+            return false;
+        };
+        if self.sequence.len() > child.sequence.len() { return false;}
+
+        // The offset that aligns the two modification sites
+        let mod_offset = child.mod_position as isize - self.mod_position as isize;
+        if mod_offset < 0 { return false;} // parent (self) would stick out of child.
+
+        if mod_offset + self.sequence.len() as isize > child.sequence.len() as isize { return false; }
+
+        self.sequence.iter().zip(child.sequence[(mod_offset as usize)..].iter())
+            .all(|(p,c)| p.mask() & c.mask() != 0)
+    }
+
+    /// Extend motif with N's
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
+    ///
+    /// motif.extend_motif_with_n(2);
+    /// assert_eq!(motif.sequence_to_string(), "GATCNN");
+    /// assert_eq!(motif.mod_position, 1);
+    /// ```
+    pub fn extend_motif_with_n(&mut self, n: usize) -> &mut Self {
+        self.sequence
+            .extend(std::iter::repeat(IupacBase::N).take(n));
+        self
+    }
+    /// Extend motif with N's
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::{IupacBase, Motif};
+    ///
+    /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
+    ///
+    /// motif.prepend_n(2);
+    /// assert_eq!(motif.sequence_to_string(), "NNGATC");
+    /// assert_eq!(motif.mod_position, 3);
+    /// ```
+    pub fn prepend_n(&mut self, n: usize) -> &mut Self {
+        let ns = vec![IupacBase::N; n];
+
+        self.sequence.splice(0..0, ns.iter().cloned());
+        self.mod_position = self.mod_position + n as u8;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -195,6 +307,25 @@ mod tests {
         assert_eq!(
             result.unwrap_err().to_string(),
             "mod_position 3 points to base 'G' which is invalid for 5mC (m) modification type."
+        );
+    }
+
+    #[test]
+    fn test_motif_starts_with_n() {
+        let result = Motif::new("NATGC", "m", 4);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Motif sequence starts or ends with N, which is invalid: NATGC",
+        );
+    }
+    #[test]
+    fn test_motif_ends_with_n() {
+        let result = Motif::new("ATGCN", "m", 3);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Motif sequence starts or ends with N, which is invalid: ATGCN",
         );
     }
 
@@ -249,5 +380,14 @@ mod tests {
 
         assert_eq!(motif1.to_regex(), "GATC");
         assert_eq!(motif2.to_regex(), "[AG]GATC[CT]");
+    }
+
+    #[test]
+    fn test_is_child_motif() {
+        let parent = Motif::new("GATC", "m", 3).unwrap();
+        let child = Motif::new("RGATCY", "m", 4).unwrap();
+
+        assert!(parent.is_child_motif(&child));
+        assert!(!child.is_child_motif(&parent));
     }
 }

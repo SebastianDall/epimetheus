@@ -27,12 +27,12 @@ use anyhow::bail;
 /// # References
 /// Based on IUPAC nucleotide code conventions.
 /// For more details, see: https://en.wikipedia.org/wiki/Nucleic_acid_notation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IupacBase {
     A,
-    T,
-    G,
     C,
+    G,
+    T,
     R,
     Y,
     S,
@@ -210,6 +210,109 @@ impl IupacBase {
             IupacBase::H => "[ACT]",
             IupacBase::V => "[ACG]",
             IupacBase::N => ".",
+        }
+    }
+
+    /// Converts the `IupacBase` into its possible bases as vec![char].
+    ///
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::IupacBase;
+    ///
+    /// let nuc = IupacBase::R.to_possible_nucleotides();
+    /// assert_eq!(nuc, vec![IupacBase::A,IupacBase::G]);
+    /// ```
+    pub fn to_possible_nucleotides(&self) -> Vec<IupacBase> {
+        match self {
+            IupacBase::A => vec![IupacBase::A],
+            IupacBase::T => vec![IupacBase::T],
+            IupacBase::G => vec![IupacBase::G],
+            IupacBase::C => vec![IupacBase::C],
+            IupacBase::R => vec![IupacBase::A, IupacBase::G],
+            IupacBase::Y => vec![IupacBase::C, IupacBase::T],
+            IupacBase::S => vec![IupacBase::C, IupacBase::G],
+            IupacBase::W => vec![IupacBase::A, IupacBase::T],
+            IupacBase::K => vec![IupacBase::G, IupacBase::T],
+            IupacBase::M => vec![IupacBase::A, IupacBase::C],
+            IupacBase::B => vec![IupacBase::C, IupacBase::G, IupacBase::T],
+            IupacBase::D => vec![IupacBase::A, IupacBase::G, IupacBase::T],
+            IupacBase::H => vec![IupacBase::A, IupacBase::C, IupacBase::T],
+            IupacBase::V => vec![IupacBase::A, IupacBase::C, IupacBase::G],
+            IupacBase::N => vec![IupacBase::A, IupacBase::T, IupacBase::G, IupacBase::C],
+        }
+    }
+
+    /// Converts the a vec![IupacBase] into its corresponding single IupacBase
+    /// representation.
+    ///
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::IupacBase;
+    ///
+    /// let mut nucs = std::collections::HashSet::new();
+    /// nucs.insert(IupacBase::A);
+    /// nucs.insert(IupacBase::C);
+    ///
+    /// let nuc = IupacBase::from_nucleotides(&nucs).unwrap();
+    /// assert_eq!(nuc, IupacBase::M);
+    ///
+    /// nucs.insert(IupacBase::G);
+    /// nucs.insert(IupacBase::T);
+    /// let nuc = IupacBase::from_nucleotides(&nucs).unwrap();
+    /// assert_eq!(nuc, IupacBase::N);
+    /// ```
+    pub fn from_nucleotides(
+        nucs: &std::collections::HashSet<IupacBase>,
+    ) -> anyhow::Result<IupacBase> {
+        let mut bases: Vec<IupacBase> = nucs.iter().copied().collect();
+        bases.sort();
+        match &bases[..] {
+            [IupacBase::A] => Ok(IupacBase::A),
+            [IupacBase::T] => Ok(IupacBase::T),
+            [IupacBase::G] => Ok(IupacBase::G),
+            [IupacBase::C] => Ok(IupacBase::C),
+            [IupacBase::A, IupacBase::G] => Ok(IupacBase::R),
+            [IupacBase::C, IupacBase::T] => Ok(IupacBase::Y),
+            [IupacBase::C, IupacBase::G] => Ok(IupacBase::S),
+            [IupacBase::A, IupacBase::T] => Ok(IupacBase::W),
+            [IupacBase::G, IupacBase::T] => Ok(IupacBase::K),
+            [IupacBase::A, IupacBase::C] => Ok(IupacBase::M),
+            [IupacBase::C, IupacBase::G, IupacBase::T] => Ok(IupacBase::B),
+            [IupacBase::A, IupacBase::G, IupacBase::T] => Ok(IupacBase::D),
+            [IupacBase::A, IupacBase::C, IupacBase::T] => Ok(IupacBase::H),
+            [IupacBase::A, IupacBase::C, IupacBase::G] => Ok(IupacBase::V),
+            [IupacBase::A, IupacBase::C, IupacBase::G, IupacBase::T] => Ok(IupacBase::N),
+            _ => bail!(
+                "Nucleotides [{}] did not match any Iupac definitions",
+                bases
+                    .iter()
+                    .map(IupacBase::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        }
+    }
+
+
+    pub const fn mask(self) -> u8 {
+        match self {
+            Self::A => 0b0001,
+            Self::T => 0b0010,
+            Self::G => 0b0100,
+            Self::C => 0b1000,
+            Self::R => 0b0101,
+            Self::Y => 0b1010,
+            Self::S => 0b1100,
+            Self::W => 0b0011,
+            Self::K => 0b0110,
+            Self::M => 0b1001,
+            Self::B => 0b1110,
+            Self::D => 0b0111,
+            Self::H => 0b1011,
+            Self::V => 0b1101,
+            Self::N => 0b1111,
         }
     }
 }
