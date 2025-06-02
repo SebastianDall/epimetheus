@@ -57,12 +57,14 @@ pub fn parse_to_methylation_record(
         .parse()
         .map_err(|_| anyhow!("Invalid n_diff field."))?;
 
+    // n_diff is the number of reads with another base than the canonical. The fraction of valid cov
+    // compared to total cov should be higher thatn the threshold.
     if (n_valid_cov as f32 / (n_diff as f32 + n_valid_cov as f32)) < min_valid_cov_to_diff_fraction
     {
         return Ok(None);
     }
 
-    let methylation = MethylationCoverage::new(n_modified, n_valid_cov)?;
+    let methylation = MethylationCoverage::new(n_modified, n_valid_cov - n_other_mod)?;
 
     let methylation_record =
         MethylationRecord::new(contig, position, strand, mod_type, methylation);
