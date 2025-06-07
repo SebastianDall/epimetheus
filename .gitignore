@@ -1,5 +1,6 @@
 .direnv
 epimetheus-venv
+.direnv
 .helix
 data
 !epimetheus-cli/tests/data/
