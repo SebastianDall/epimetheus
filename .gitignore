@@ -2,7 +2,6 @@
 epimetheus-venv
 .direnv
 .helix
-data
 !epimetheus-cli/tests/data/
 py_compare.py
 logs/
