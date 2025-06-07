@@ -1,4 +1,5 @@
 .direnv
+epimetheus-venv
 .helix
 data
 !tests/data/

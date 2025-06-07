@@ -26,11 +26,9 @@
             pkgs.clang
             pkgs.pkg-config
 
-            # For interacting with mongodb
-            pkgs.mongosh
-
-            # Testing http endpoints
-            pkgs.hurl
+            # For python package
+            pkgs.python3Full
+            pkgs.maturin
           ];
         };
         packages.default = pkgs.buildRustPackage {
