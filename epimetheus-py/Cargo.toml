@@ -1,0 +1,17 @@
+[package]
+name = "epimetheus-py"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+
+
+[lib]
+crate-type = ["cdylib"]
+name = "epymetheus"
+
+[dependencies]
+pyo3 = { version = "*", features = ["extension-module"]}
+epimetheus-core = { path = "../epimetheus-core"}
