@@ -34,9 +34,7 @@ jobs:
           sudo apt-get install -y musl-tools
 
       - name: Build the binary
-        run: cargo build --release --target ${{ matrix.target }}
-
+        run: cargo build --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py
       - name: test the binary
-        run: cargo test --release --target ${{ matrix.target }}
-
+        run: cargo test --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py
 
