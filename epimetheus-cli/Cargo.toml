@@ -1,0 +1,13 @@
+[package]
+name = "epimetheus"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+clap = {version = "*", features = ["derive"]}
+epimetheus-core = {path = "../epimetheus-core"}
+indicatif = {version = "0.17.8", features = ["rayon"]}
+humantime = {workspace = true }
+log = {workspace = true }
+env_logger = {workspace = true }
+anyhow = {workspace = true }
