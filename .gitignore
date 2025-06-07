@@ -2,7 +2,7 @@
 epimetheus-venv
 .helix
 data
-!tests/data/
+!epimetheus-cli/tests/data/
 py_compare.py
 logs/
 soil.sh
