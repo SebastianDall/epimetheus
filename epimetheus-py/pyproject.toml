@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "epimetheus_py"
+version = "0.6.0"
+authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
+classifiers = ["Programming Language :: Rust"]
+
+[project.optional-dependencies]
+testing = [
+  "pytest>=8"
+]
+
+
+# [project.scripts]
+# epimetheus = "epimetheus._cli:main"
+

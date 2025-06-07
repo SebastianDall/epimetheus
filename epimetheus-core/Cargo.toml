@@ -1,0 +1,25 @@
+[package]
+name = "epimetheus-core"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+seq_io = "0.3.2"
+methylome = { path = "../methylome"}
+rayon = "1.10.0"
+log = {workspace = true }
+humantime = {workspace = true }
+env_logger = {workspace = true }
+anyhow = {workspace = true}
+tempfile = "3.14.0"
+bytesize = "1.3.0"
+csv = "1.3.1"
+ahash = "0.8.11"
+# pprof = { version = "0.14", features = ["flamegraph"] }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[profile.release]
+debug = true

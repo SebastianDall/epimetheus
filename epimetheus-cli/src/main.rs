@@ -3,18 +3,13 @@ use clap::Parser;
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::info;
-use motif_clustering::motif_clustering;
 use std::time::Instant;
 
-mod argparser;
-mod data;
-mod data_load;
-mod extract_methylation_pattern;
-mod motif_clustering;
-mod processing;
-mod utils;
 
-use crate::extract_methylation_pattern::extract_methylation_pattern;
+use epimetheus_core::extract_methylation_pattern;
+use epimetheus_core::motif_clustering;
+
+mod argparser;
 use argparser::Args;
 
 fn main() -> Result<()> {

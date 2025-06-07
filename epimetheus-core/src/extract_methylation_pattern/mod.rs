@@ -64,6 +64,8 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
         contigs,
         args.batch_size,
         args.min_valid_read_coverage,
+        args.min_valid_cov_to_diff_fraction,
+        args.allow_assembly_pilup_mismatch,
     );
 
     let mut methylation_pattern_results: Vec<MotifMethylationDegree> = Vec::new();
