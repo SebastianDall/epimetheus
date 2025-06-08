@@ -15,9 +15,6 @@ def test_methylation_pattern(tmp_path):
     )
 
     actual = outfile.read_text()
-    expected = """\
-GATC\ta\t1
-GATC\tm\t3
-    """    
+    expected = "GATC\ta\t1\nGATC\tm\t3"    
     assert _normalize(actual) == _normalize(expected)   
 
