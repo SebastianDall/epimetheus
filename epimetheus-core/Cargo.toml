@@ -20,6 +20,3 @@ ahash = "0.8.11"
 
 [dev-dependencies]
 criterion = "0.5.1"
-
-[profile.release]
-debug = true
