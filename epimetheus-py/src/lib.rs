@@ -36,9 +36,29 @@ fn methylation_pattern(
     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
+#[pyfunction]
+fn remove_child_motifs(
+        output: &str,
+        motifs: Vec<String>,
+) -> PyResult<()> {
+    let args = epimetheus_core::motif_clustering::MotifClusteringArgs {
+        output: output.to_string(),
+        motifs: Some(motifs),
+    };
+
+
+    
+    Python::with_gil(|py| {
+        py.allow_threads(|| {
+            epimetheus_core::motif_clustering(args)
+        })
+    })
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+}
 
 #[pymodule]
 fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(methylation_pattern, m)?)?;
+    m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     Ok(())
 }
