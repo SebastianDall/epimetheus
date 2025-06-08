@@ -19,6 +19,14 @@ log = "0.4.22"
 env_logger = "0.11.5"
 humantime = "2.1.0"
 
+[workspace.metadata.release]
+shared-version         = true      # bump one version for all crates
+publish             = false      # don’t `cargo publish`
+push                   = false     # don’t `git push`
+tag-name               = "v{{version}}"
 
 [profile.release]
 debug = true
+
+
+

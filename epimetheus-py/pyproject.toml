@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "epimetheus_py"
-version = "0.6.0"
+version = "${NEW_VERSION}"
 authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
 
