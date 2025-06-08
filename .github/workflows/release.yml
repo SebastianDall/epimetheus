@@ -2,6 +2,11 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to rebuild, e.g. v0.6.0'
+        required: true
      
 jobs:
   build-binaries:
