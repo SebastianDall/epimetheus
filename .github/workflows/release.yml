@@ -78,10 +78,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}  # Use the tag as the release version
           release_name: "Release ${{ github.ref_name }}"
-          files: |
-            epimetheus-linux
-            epimetheus-windows.exe
-            epimetheus-macos
+          files: epimetheus-linux
+            # epimetheus-windows.exe
+            # epimetheus-macos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
