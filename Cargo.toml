@@ -3,7 +3,7 @@ members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-py"]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.2"
+version = "0.6.0"
 edition = "2021"
 authors = ["semoda@bio.aau.dk"]
 
