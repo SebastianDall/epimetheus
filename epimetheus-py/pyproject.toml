@@ -8,6 +8,8 @@ dynamic = ["version"]
 authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
 
+
+
 [project.optional-dependencies]
 testing = [
   "pytest>=8"
