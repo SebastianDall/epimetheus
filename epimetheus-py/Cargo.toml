@@ -7,11 +7,6 @@ description.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[package.metadata.release]
-pre-release-hook = [
-  "sh", "-c",
-  "sed -i 's/^version = .*/version = \"${NEW_VERSION}\"/' pyproject.toml"
-]
 [lib]
 crate-type = ["cdylib"]
 name = "epymetheus"

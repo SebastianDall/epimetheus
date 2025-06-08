@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "epimetheus_py"
-version = "${NEW_VERSION}"
+dynamic = ["version"]
 authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
 
