@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -354,7 +354,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "ahash",
  "anyhow",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus-py"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "epimetheus-core",
  "pyo3",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "methylome"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "regex",
