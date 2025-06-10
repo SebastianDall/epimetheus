@@ -111,7 +111,11 @@ jobs:
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
-          maturin publish \
-            --username __token__ \
-            --password "$PYPI_TOKEN" \
-            --release
+          docker run --rm \
+                      -v "${{ github.workspace }}":/io \
+                      -w /io \
+                      ghcr.io/pyo3/maturin:latest \
+                        publish \
+                          --manifest-path epimetheus-py/Cargo.toml \
+                          --username __token__ \
+                          --password "$PYPI_TOKEN"
