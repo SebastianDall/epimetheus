@@ -112,6 +112,7 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
           docker run --rm \
+                      -e PYPI_TOKEN="$PYPI_TOKEN" \
                       -v "${{ github.workspace }}":/io \
                       -w /io \
                       ghcr.io/pyo3/maturin:latest \
