@@ -126,75 +126,12 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
 
     let motifs_with_no_childs = collapse_child_motifs(&motifs);
 
-    // let mut uf = cluster_motifs(&motifs_with_no_childs, true);
-    // let motif_clusters = group_motifs_by_set(&mut uf, &motifs_with_no_childs);
-
-    // // Within cluster find best candidate motif
-    // // Should be the smallest
-    // // In case several have the same lenght
-    // // they should be collapsed
-    // let mut motif_cluster_representatives = HashMap::new();
-
-    // for (_cluster, motifs_in_cluster) in motif_clusters {
-    //     let min_motif = motifs_in_cluster
-    //         .iter()
-    //         .map(|m| m.sequence.len())
-    //         .min()
-    //         .unwrap();
-    //     let smallest_motifs = motifs_in_cluster
-    //         .iter()
-    //         .cloned()
-    //         .filter(|m| m.sequence.len() == min_motif)
-    //         .collect::<Vec<_>>();
-
-    //     if smallest_motifs.len() > 1 {
-    //         let mut rep_cluster = cluster_motifs(&smallest_motifs, true);
-    //         let rep_motif_clusters = group_motifs_by_set(&mut rep_cluster, &smallest_motifs);
-
-    //         for (_rep_cluster, rep_motifs_in_cluster) in rep_motif_clusters {
-    //             let rep_motif = collapse_motifs(&rep_motifs_in_cluster)?;
-    //             motif_cluster_representatives.insert(rep_motif, motifs_in_cluster.clone());
-    //         }
-    //     } else {
-    //         let rep_motif = smallest_motifs[0].clone();
-    //         motif_cluster_representatives.insert(rep_motif, motifs_in_cluster);
-    //     }
-    // }
 
     let outfile = std::fs::File::create(outpath)
         .with_context(|| format!("Failed to create file at: {:?}", outpath))?;
     let mut writer = BufWriter::new(outfile);
 
-    // writeln!(
-    //     writer,
-    //     "motif_representative\tmod_type_representative\tmod_position_representative\tmotif\tmod_type\tmod_position"
-    // )?;
-
-    // for (rep, motifs) in motif_cluster_representatives {
-    //     let rep_motif_sequence = rep.sequence_to_string();
-    //     let rep_mod_type_str = rep.mod_type.to_pileup_code();
-    //     let rep_mod_position = rep.mod_position;
-
-    //     for motif in motifs {
-    //         let motif_sequence = motif.sequence_to_string();
-    //         let mod_type_str = motif.mod_type.to_pileup_code();
-    //         let mod_position = motif.mod_position;
-
-    //         writeln!(
-    //             writer,
-    //             "{}\t{}\t{}\t{}\t{}\t{}",
-    //             rep_motif_sequence,
-    //             rep_mod_type_str,
-    //             rep_mod_position,
-    //             motif_sequence,
-    //             mod_type_str,
-    //             mod_position,
-    //         )?;
-    //         writer.flush()?;
-    //     }
-    // }
-
-
+    writeln!(writer, "motif\tmod_type\tmod_position")?;
     for m in motifs_with_no_childs {
         writeln!(writer, "{}\t{}\t{}", m.sequence_to_string(), m.mod_type.to_pileup_code(), m.mod_position)?;
     }
