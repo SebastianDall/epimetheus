@@ -28,7 +28,7 @@ def test_methylation_pattern(data_dir, tmp_path):
         batch_size=1000,
         min_valid_read_coverage=3,
         min_valid_cov_to_diff_fraction=0.8,
-        allow_assembly_pilup_mismatch=False,
+        allow_assembly_pileup_mismatch=False,
     )
 
     actual = outfile.read_text()

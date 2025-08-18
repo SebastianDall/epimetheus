@@ -7,12 +7,11 @@ To use `epimetheus` it is therefore necessary to know which motifs to look for b
 
 ## Usage:
 ```bash
-Cli tool for fast lookup in pileup for motif methylation
-
 Usage: epimetheus <COMMAND>
 
 Commands:
   methylation-pattern  
+  motif-cluster        
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -38,6 +37,7 @@ The return is a dataframe with:
 - N_motif_obs: The number of motifs with methylation information above `min-valid-read-coverage`
 - motif_occurences_total: The total of occurences of the motif sequence in the contig.
 
+
 ```bash
 Usage: epimetheus methylation-pattern [OPTIONS] --pileup <PILEUP> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
 
@@ -56,6 +56,27 @@ Options:
           Minimum valid read coverage for calculating methylation. [default: 3]
       --batch-size <BATCH_SIZE>
           Number of contigs to process at a time. Higher number will use more RAM. [default: 1000]
+      --min-valid-cov-to-diff-fraction <MIN_VALID_COV_TO_DIFF_FRACTION>
+          Required fraction of valid coverage relative to different read mapping. N_valid_cov / (N_valid_cov + N_diff) [default: 0.8]
+      --allow-assembly-pilup-mismatch
+          Allow epimetheus to continue if a contig in the pileup is not present in the assembly
   -h, --help
           Print help
+```
+
+### motif-cluster
+Motif-cluster will collapse a list of provided motifs to a set of "parent" motifs.
+A `parent` motif is contained within another motif which would be the `child` motif. For instance
+provided a list of `GATC_m_3` and `RGATCY_m_4`, the resulting list of motifs will be `GATC_m_3` because
+`RGATCY_m_4` is a `child` of  `GATC_m_3`.
+
+For binning this can be beneficial to reduce correlated features.
+
+```bash
+Usage: epimetheus motif-cluster --output <OUTPUT> --motifs <MOTIFS>...
+
+Options:
+  -o, --output <OUTPUT>     Path to output file. Must be .tsv.
+  -m, --motifs <MOTIFS>...  Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'
+  -h, --help                Print help
 ```

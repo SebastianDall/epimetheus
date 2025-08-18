@@ -12,7 +12,7 @@ fn methylation_pattern(
     min_valid_read_coverage: usize,
     batch_size: usize,
     min_valid_cov_to_diff_fraction: f32,
-    allow_assembly_pilup_mismatch: bool,
+    allow_assembly_pileup_mismatch: bool,
 ) -> PyResult<()> {
     let args = epimetheus_core::extract_methylation_pattern::MethylationPatternArgs {
         pileup: pileup.to_string(),
@@ -23,7 +23,7 @@ fn methylation_pattern(
         min_valid_read_coverage: min_valid_read_coverage as u32,
         batch_size,
         min_valid_cov_to_diff_fraction,
-        allow_assembly_pilup_mismatch,
+        allow_assembly_pileup_mismatch,
     };
 
 

@@ -49,5 +49,5 @@ pub struct MethylationPatternArgs {
         default_value_t = false,
         help = "Allow epimetheus to continue if a contig in the pileup is not present in the assembly"
     )]
-    pub allow_assembly_pilup_mismatch: bool,
+    pub allow_assembly_pileup_mismatch: bool,
 }
