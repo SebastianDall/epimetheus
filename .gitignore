@@ -1,6 +1,6 @@
-!.github
-.direnv
+.!.github
 epimetheus-venv
+.env
 .direnv
 .helix
 !epimetheus-cli/tests/data/

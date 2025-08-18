@@ -80,3 +80,7 @@ Options:
   -m, --motifs <MOTIFS>...  Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'
   -h, --help                Print help
 ```
+
+
+## Python package
+This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
