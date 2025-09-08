@@ -33,12 +33,18 @@
             pkgs.openssl
             pkgs.clang
             pkgs.pkg-config
+            pkgs.stdenv.cc.cc.lib
 
             # For python package
             pkgs.python3Full
             pkgs.maturin
           ];
+          
+          shellHook = ''
+            export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
+          '';
         };
+
         packages.default = pkgs.buildRustPackage {
           src = ./.;
           cargoLock = {
