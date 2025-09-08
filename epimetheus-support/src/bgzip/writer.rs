@@ -5,7 +5,7 @@ use noodles_tabix as tabix;
 use rust_htslib::bgzf::Writer as BGZFWriter;
 use std::{
     fs::File,
-    io::BufReader,
+    io::{BufReader, Write},
     path::{Path, PathBuf},
 };
 
@@ -35,14 +35,11 @@ pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
             new_out
         }
     };
-    let mut output_file = File::create(&output_path)?;
 
-    // let mut writer = BGZFWriter::new(&mut output_file, Compression::default());
-
-    let mut writer = BGZFWriter::from_path(Path::new(output_path));
+    let mut writer = BGZFWriter::from_path(&output_path)?;
 
     std::io::copy(&mut reader, &mut writer)?;
-    writer.close()?;
+    writer.flush()?;
 
     if !&args.keep {
         info!("Removing file: {}", &args.input);
@@ -59,9 +56,13 @@ pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
 fn write_tabix(file: &Path) -> anyhow::Result<()> {
     let outfile = format!("{}.tbi", file.display());
 
-    let index = tabix::Index::builder()
-        .set_header(Header::default())
+    let bed_head = Header::builder()
+        .set_reference_sequence_name_index(0)
+        .set_start_position_index(1)
+        .set_end_position_index(Some(2))
         .build();
+
+    let index = tabix::Index::builder().set_header(bed_head).build();
 
     tabix::fs::write(outfile, &index)?;
 
