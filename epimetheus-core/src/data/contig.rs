@@ -1,12 +1,14 @@
 use ahash::AHashMap;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
-use super::{methylation::*, MethylationRecord};
+use super::{MethylationRecord, methylation::*};
 use methylome::{ModType, Strand};
+
+pub type ContigId = String;
 
 #[derive(Clone)]
 pub struct Contig {
-    pub id: String,
+    pub id: ContigId,
     pub sequence: String,
     sequence_len: usize,
     pub methylated_positions: AHashMap<(usize, Strand, ModType), MethylationCoverage>,
@@ -32,7 +34,12 @@ impl Contig {
         meth_coverage: MethylationCoverage,
     ) -> Result<()> {
         if position as usize >= self.sequence_len {
-            bail!("Position out of bounds for '{}': Cannot insert key position ({}) longer than contig length ({})!", self.id, position, self.sequence_len)
+            bail!(
+                "Position out of bounds for '{}': Cannot insert key position ({}) longer than contig length ({})!",
+                self.id,
+                position,
+                self.sequence_len
+            )
         }
 
         let key = (position, strand.clone(), mod_type.clone());

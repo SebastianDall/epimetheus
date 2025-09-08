@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use batch_loader::BatchLoader;
 use humantime::format_duration;
 use log::{debug, error, info};
@@ -12,7 +12,7 @@ use std::{
 use crate::{
     data_load::load_contigs,
     processing::{
-        calculate_contig_read_methylation_pattern, create_motifs, MotifMethylationDegree,
+        MotifMethylationDegree, calculate_contig_read_methylation_pattern, create_motifs,
     },
     utils::create_output_file,
 };
@@ -24,7 +24,7 @@ pub mod utils;
 pub use args::MethylationPatternArgs;
 pub use utils::parse_to_methylation_record;
 
-pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
+pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> {
     info!(
         "Running epimetheus 'methylation-pattern' with {} threads",
         &args.threads
@@ -33,7 +33,7 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
     let outpath = Path::new(&args.output);
     create_output_file(&outpath)?;
 
-    let motifs = match args.motifs {
+    let motifs = match &args.motifs {
         Some(motifs) => {
             info!("Motifs loaded");
             motifs
@@ -43,7 +43,7 @@ pub fn extract_methylation_pattern(args: MethylationPatternArgs) -> Result<()> {
         }
     };
 
-    let motifs = create_motifs(motifs).context("Failed to parse motifs")?;
+    let motifs = create_motifs(motifs.clone()).context("Failed to parse motifs")?;
     info!("Successfully parsed motifs.");
 
     info!("Loading assembly");

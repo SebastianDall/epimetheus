@@ -8,9 +8,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+epimetheus-core = { path = "../epimetheus-core" }
 clap = { workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
+rust-htslib = "*"
 bgzip = {version = "0.3.1", features = ["rayon"]}
 noodles-tabix = "0.57.0"
 noodles-csi = "0.51.0"

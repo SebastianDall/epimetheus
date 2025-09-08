@@ -1,7 +1,5 @@
 use pyo3::prelude::*;
 
-
-
 #[pyfunction]
 fn methylation_pattern(
     pileup: &str,
@@ -26,34 +24,19 @@ fn methylation_pattern(
         allow_assembly_pileup_mismatch,
     };
 
-
-    
-    Python::with_gil(|py| {
-        py.allow_threads(|| {
-            epimetheus_core::extract_methylation_pattern(args)
-        })
-    })
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    Python::with_gil(|py| py.allow_threads(|| epimetheus_core::extract_methylation_pattern(&args)))
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pyfunction]
-fn remove_child_motifs(
-        output: &str,
-        motifs: Vec<String>,
-) -> PyResult<()> {
+fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
     let args = epimetheus_core::motif_clustering::MotifClusteringArgs {
         output: output.to_string(),
         motifs: Some(motifs),
     };
 
-
-    
-    Python::with_gil(|py| {
-        py.allow_threads(|| {
-            epimetheus_core::motif_clustering(args)
-        })
-    })
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    Python::with_gil(|py| py.allow_threads(|| epimetheus_core::motif_clustering(&args)))
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pymodule]

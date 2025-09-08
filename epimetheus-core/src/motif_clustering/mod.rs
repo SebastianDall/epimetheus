@@ -106,15 +106,15 @@ fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
     Ok(final_motif)
 }
 
-pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
+pub fn motif_clustering(args: &MotifClusteringArgs) -> Result<()> {
     let outpath = Path::new(&args.output);
 
     create_output_file(outpath)?;
 
-    let motifs = match args.motifs {
+    let motifs = match &args.motifs {
         Some(motifs) => {
             info!("Motifs loaded");
-            create_motifs(motifs).context("Failed to parse motifs")?
+            create_motifs(motifs.clone()).context("Failed to parse motifs")?
         }
         _ => {
             anyhow::bail!("No motifs found");

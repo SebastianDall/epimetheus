@@ -1,6 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use epimetheus_support::bgzip::zip_pileup;
+use epimetheus_support::bgzip::args::BgZipCommands;
+use epimetheus_support::bgzip::reader::ReaderConfig;
+use epimetheus_support::bgzip::reader::pileup_reader;
+use epimetheus_support::bgzip::writer::zip_pileup;
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::info;
@@ -21,17 +24,26 @@ fn main() -> Result<()> {
 
     match &args.command {
         argparser::Commands::MethylationPattern(methyl_args) => {
-            let methyl_args = methyl_args.clone();
             extract_methylation_pattern(methyl_args)?;
         }
         argparser::Commands::MotifCluster(motif_cluster_args) => {
-            let motif_cluster_args = motif_cluster_args.clone();
             motif_clustering(motif_cluster_args)?;
         }
-        argparser::Commands::Bgzip(bgzip_args) => {
-            let bgzip_args = bgzip_args.clone();
-            zip_pileup(bgzip_args)?;
-        }
+        argparser::Commands::Bgzip(bgzip_args) => match &bgzip_args.commands {
+            BgZipCommands::Compress(compress_args) => {
+                zip_pileup(compress_args)?;
+            }
+            BgZipCommands::Decompress(decompress_args) => {
+                // let reader_conf = ReaderConfig {
+                //     input: decompress_args.input,
+                //     output: todo!(),
+                //     contigs: todo!(),
+
+                // }
+                // pileup_reader(&decompress_args)?;
+                todo!()
+            }
+        },
     }
 
     let elapsed_total_duration = total_duration.elapsed();
