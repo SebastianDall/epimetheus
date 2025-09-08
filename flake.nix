@@ -28,6 +28,7 @@
             pkgs.linuxKernel.packages.linux_zen.perf
             pkgs.cargo-cross
             pkgs.cargo-release
+            pkgs.htslib
 
             # For building
             pkgs.openssl
@@ -39,7 +40,7 @@
             pkgs.python3Full
             pkgs.maturin
           ];
-          
+
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
           '';
