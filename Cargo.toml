@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-py"]
+members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-py", "epimetheus-support"]
 default-members = ["methylome", "epimetheus-core", "epimetheus-cli"]
 
 

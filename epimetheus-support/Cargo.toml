@@ -10,5 +10,8 @@ repository.workspace = true
 [dependencies]
 clap = { workspace = true }
 anyhow = { workspace = true }
+log = {workspace = true}
 bgzip = {version = "0.3.1", features = ["rayon"]}
 noodles-tabix = "0.57.0"
+noodles-csi = "0.51.0"
+

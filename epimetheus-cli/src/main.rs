@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
+use epimetheus_support::bgzip::zip_pileup;
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::info;
 use std::time::Instant;
-
 
 use epimetheus_core::extract_methylation_pattern;
 use epimetheus_core::motif_clustering;
@@ -27,6 +27,10 @@ fn main() -> Result<()> {
         argparser::Commands::MotifCluster(motif_cluster_args) => {
             let motif_cluster_args = motif_cluster_args.clone();
             motif_clustering(motif_cluster_args)?;
+        }
+        argparser::Commands::Bgzip(bgzip_args) => {
+            let bgzip_args = bgzip_args.clone();
+            zip_pileup(bgzip_args)?;
         }
     }
 

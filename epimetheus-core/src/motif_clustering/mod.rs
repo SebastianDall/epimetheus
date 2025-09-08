@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Context, Result};
-use rayon::prelude::*;
+use anyhow::{Context, Result, anyhow};
 use log::info;
 use methylome::{IupacBase, Motif};
+use rayon::prelude::*;
 use std::{
     collections::HashSet,
     io::{BufWriter, Write},
@@ -36,19 +36,17 @@ fn collapse_child_motifs(motifs: &[Motif]) -> Vec<Motif> {
         .into_par_iter()
         .flat_map(|i| {
             // for each i, scan j = i+1..n in parallel
-            (i + 1..n)
-                .into_par_iter()
-                .filter_map(move |j| {
-                    let m1 = &motifs[i];
-                    let m2 = &motifs[j];
-                    if m1.is_child_motif(m2) || m2.is_child_motif(m1) {
-                        // pick the shorter/less‐possible one
-                        let victim = pick_victim(&m1, &m2);
-                        Some(victim)
-                    } else {
-                        None
-                    }
-                })
+            (i + 1..n).into_par_iter().filter_map(move |j| {
+                let m1 = &motifs[i];
+                let m2 = &motifs[j];
+                if m1.is_child_motif(m2) || m2.is_child_motif(m1) {
+                    // pick the shorter/less‐possible one
+                    let victim = pick_victim(&m1, &m2);
+                    Some(victim)
+                } else {
+                    None
+                }
+            })
         })
         .collect();
 
@@ -62,7 +60,6 @@ fn collapse_child_motifs(motifs: &[Motif]) -> Vec<Motif> {
         .cloned()
         .collect()
 }
-
 
 #[allow(dead_code)]
 fn collapse_motifs(motifs: &Vec<Motif>) -> Result<Motif> {
@@ -126,17 +123,21 @@ pub fn motif_clustering(args: MotifClusteringArgs) -> Result<()> {
 
     let motifs_with_no_childs = collapse_child_motifs(&motifs);
 
-
     let outfile = std::fs::File::create(outpath)
         .with_context(|| format!("Failed to create file at: {:?}", outpath))?;
     let mut writer = BufWriter::new(outfile);
 
     writeln!(writer, "motif\tmod_type\tmod_position")?;
     for m in motifs_with_no_childs {
-        writeln!(writer, "{}\t{}\t{}", m.sequence_to_string(), m.mod_type.to_pileup_code(), m.mod_position)?;
+        writeln!(
+            writer,
+            "{}\t{}\t{}",
+            m.sequence_to_string(),
+            m.mod_type.to_pileup_code(),
+            m.mod_position
+        )?;
     }
 
-    
     Ok(())
 }
 
@@ -163,7 +164,4 @@ mod tests {
         assert_eq!(motifs_to_keep[1], m3.clone());
         assert_eq!(motifs_to_keep[2], m5.clone());
     }
-
-    
-
 }

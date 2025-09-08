@@ -3,6 +3,7 @@ use crate::{
     motif_clustering::MotifClusteringArgs,
 };
 use clap::{Parser, Subcommand};
+use epimetheus_support::bgzip::args::BgzipArgs;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -15,4 +16,5 @@ pub struct Args {
 pub enum Commands {
     MethylationPattern(MethylationPatternArgs),
     MotifCluster(MotifClusteringArgs),
+    Bgzip(BgzipArgs),
 }
