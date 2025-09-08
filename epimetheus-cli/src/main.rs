@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use epimetheus_support::bgzip::args::BgZipCommands;
 use epimetheus_support::bgzip::reader::ReaderConfig;
-use epimetheus_support::bgzip::reader::pileup_reader;
+use epimetheus_support::bgzip::reader::read_pileup;
 use epimetheus_support::bgzip::writer::zip_pileup;
 use humantime::format_duration;
 use indicatif::HumanDuration;
@@ -34,14 +34,12 @@ fn main() -> Result<()> {
                 zip_pileup(compress_args)?;
             }
             BgZipCommands::Decompress(decompress_args) => {
-                // let reader_conf = ReaderConfig {
-                //     input: decompress_args.input,
-                //     output: todo!(),
-                //     contigs: todo!(),
-
-                // }
-                // pileup_reader(&decompress_args)?;
-                todo!()
+                let reader_conf = ReaderConfig {
+                    input: decompress_args.input.clone(),
+                    output: decompress_args.output.clone(),
+                    contigs: decompress_args.contigs.clone(),
+                };
+                read_pileup(&reader_conf)?;
             }
         },
     }
