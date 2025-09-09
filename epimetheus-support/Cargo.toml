@@ -18,3 +18,5 @@ bgzip = {version = "0.3.1", features = ["rayon"]}
 noodles-tabix = "0.57.0"
 noodles-csi = "0.51.0"
 ahash = "0.8.11"
+noodles-bgzf = "0.43.0"
+noodles-core = "0.18.0"
