@@ -9,7 +9,7 @@ pub struct BgZipArgs {
 #[derive(Subcommand, Debug)]
 pub enum BgZipCommands {
     Compress(BgzipWriterArgs),
-    Decompress(BgzipReaderArgs),
+    Decompress(BgzipExtractArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -41,7 +41,7 @@ pub struct BgzipWriterArgs {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct BgzipReaderArgs {
+pub struct BgzipExtractArgs {
     #[arg(short, long, required = true, help = "Path to output pileup file.")]
     pub input: String,
 
@@ -55,9 +55,16 @@ pub struct BgzipReaderArgs {
 
     #[arg(
         long,
+        default_value_t = false,
+        help = "list contig names in pileup."
+    )]
+    pub ls: bool,
+
+    #[arg(
+        long,
         num_args(1..), 
-        required = true,
+        required = false,
         help = "Optional vector of contig ids to query. Left empty the whole pileup will be read."
     )]
-    pub contigs: Vec<String>,
+    pub contigs: Option<Vec<String>>,
 }

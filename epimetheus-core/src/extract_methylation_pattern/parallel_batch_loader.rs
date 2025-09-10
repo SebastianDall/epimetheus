@@ -5,7 +5,6 @@ use anyhow::Result;
 use csv::StringRecord;
 use epimetheus_support::bgzip::reader::PileupReader;
 use log::warn;
-use methylome::{ModType, Strand};
 use rayon::prelude::*;
 
 use crate::{
@@ -155,7 +154,7 @@ fn process_contig(
     let mut contig = assembly_contig.clone();
 
     for record in records {
-        let pileup_line = StringRecord::from(record.split('\t').collect::<Vec<&str>>());
+        let pileup_line = StringRecord::from(record.0.split('\t').collect::<Vec<&str>>());
         let methylation_record = parse_to_methylation_record(
             contig.id.clone(),
             &pileup_line,
@@ -172,24 +171,3 @@ fn process_contig(
 
     Ok(contig)
 }
-
-// struct PileupRecord {
-//     contig: String,
-//     start: u32,
-//     end: u32,
-//     mod_type: ModType,
-//     score: u32,
-//     strand: Strand,
-//     start_pos: u32,
-//     end_pos: u32,
-//     color: String,
-//     n_valid_cov: u32,
-//     fraction_modified: f64,
-//     n_modified: u32,
-//     n_canonical: u32,
-//     n_other_mod: u32,
-//     n_delete: u32,
-//     n_fail: u32,
-//     n_diff: u32,
-//     n_no_call: u32,
-// }
