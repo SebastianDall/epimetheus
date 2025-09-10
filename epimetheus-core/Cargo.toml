@@ -6,6 +6,7 @@ version.workspace = true
 [dependencies]
 clap = { workspace = true }
 seq_io = "0.3.2"
+epimetheus-support = { path = "../epimetheus-support" }
 methylome = { path = "../methylome"}
 rayon = "1.10.0"
 log = {workspace = true }

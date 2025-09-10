@@ -1,8 +1,7 @@
-use std::path::Path;
-
 use anyhow::{anyhow, Result};
-use epimetheus_core::data::contig::ContigId;
+// use log::{error, info, warn};
 use rust_htslib::tbx::{Read, Reader};
+use std::path::Path;
 
 use crate::bgzip::args::BgzipReaderArgs;
 
@@ -10,7 +9,7 @@ use crate::bgzip::args::BgzipReaderArgs;
 pub struct ReaderConfig {
     pub input: String,
     pub output: Option<String>,
-    pub contigs: Option<Vec<ContigId>>,
+    pub contigs: Vec<String>,
 }
 
 impl From<BgzipReaderArgs> for ReaderConfig {
@@ -35,8 +34,7 @@ impl PileupReader {
         Ok(Self { reader })
     }
 
-    pub fn query_contig(&mut self, contig: &ContigId) -> Result<Vec<String>> {
-        println!("{}", contig);
+    pub fn query_contig(&mut self, contig: &String) -> Result<Vec<String>> {
         let tid = self.reader.tid(contig).map_err(|e| {
             anyhow!(
                 "Failed to fetch contig '{}' in index: {}",
@@ -45,7 +43,7 @@ impl PileupReader {
             )
         })?;
 
-        const UNREASONABLE_MAX: u64 = i32::MAX as u64;
+        const UNREASONABLE_MAX: u64 = i64::MAX as u64;
 
         self.reader
             .fetch(tid, 0, UNREASONABLE_MAX)
@@ -60,13 +58,10 @@ impl PileupReader {
         Ok(results)
     }
 
-    pub fn list_available_contigs(&self) {
+    pub fn available_contigs(&self) -> Vec<String> {
         let contigs = self.reader.seqnames();
 
-        println!("Contigs in file");
-        for c in contigs.iter() {
-            println!(" {}", c);
-        }
+        contigs
     }
 }
 
@@ -77,16 +72,20 @@ impl PileupReader {
 //     Ok(())
 // }
 
-pub fn read_pileup(args: &ReaderConfig) -> Result<()> {
-    let mut pileup_reader = PileupReader::from_path(Path::new(&args.input))?;
+pub fn extract_from_pileup(args: &ReaderConfig) -> Result<()> {
+    todo!()
+    // let mut pileup_reader = PileupReader::from_path(Path::new(&args.input))?;
 
-    match &args.contigs {
-        Some(contigs) => {
-            let records = pileup_reader.query_contig(&contigs[0])?;
-            println!("{:#?}", records)
-        }
-        None => println!("No records found"),
-    };
+    // let all_contigs = pileup_reader.available_contigs();
 
-    Ok(())
+    // if !&args.contigs.iter().all(|c| all_contigs.contains(c)) {
+    //     error!("Not all contigs are in input: {}", args.input);
+    //     for contig in &args.contigs {
+    //         if !all_contigs.contains(contig) {
+    //             error!("- {}", contig);
+    //         }
+    //     }
+    // }
+
+    // Ok(())
 }

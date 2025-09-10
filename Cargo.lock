@@ -566,6 +566,7 @@ dependencies = [
  "criterion",
  "csv",
  "env_logger",
+ "epimetheus-support",
  "humantime",
  "log",
  "methylome",
@@ -586,14 +587,18 @@ dependencies = [
 name = "epimetheus-support"
 version = "0.6.2"
 dependencies = [
+ "ahash",
  "anyhow",
  "bgzip",
  "clap",
- "epimetheus-core",
  "log",
+ "methylome",
+ "noodles-bgzf",
+ "noodles-core",
  "noodles-csi",
  "noodles-tabix",
  "rust-htslib",
+ "tempfile",
 ]
 
 [[package]]

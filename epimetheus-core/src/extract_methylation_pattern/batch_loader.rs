@@ -1,13 +1,16 @@
 use ahash::AHashMap;
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use log::{debug, warn};
 use std::io::BufRead;
 
-use crate::data::{contig::Contig, GenomeWorkspace, GenomeWorkspaceBuilder};
+use crate::{
+    data::{GenomeWorkspace, GenomeWorkspaceBuilder, contig::Contig},
+    extract_methylation_pattern::reader::BatchReader,
+};
 
 use super::parse_to_methylation_record;
 
-pub struct BatchLoader<R> {
+pub struct SequentialBatchLoader<R> {
     reader: csv::Reader<R>,
     assembly: AHashMap<String, Contig>,
     batch_size: usize,
@@ -21,7 +24,7 @@ pub struct BatchLoader<R> {
     contigs_loaded_in_batch: usize,
 }
 
-impl<R: BufRead> BatchLoader<R> {
+impl<R: BufRead> SequentialBatchLoader<R> {
     pub fn new(
         reader: R,
         assembly: AHashMap<String, Contig>,
@@ -43,7 +46,7 @@ impl<R: BufRead> BatchLoader<R> {
             batch_size
         };
 
-        BatchLoader {
+        SequentialBatchLoader {
             reader: rdr,
             assembly,
             batch_size: size,
@@ -58,7 +61,7 @@ impl<R: BufRead> BatchLoader<R> {
     }
 }
 
-impl<R: BufRead> Iterator for BatchLoader<R> {
+impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
     type Item = Result<GenomeWorkspace, anyhow::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -156,6 +159,12 @@ impl<R: BufRead> Iterator for BatchLoader<R> {
     }
 }
 
+impl<R: BufRead> BatchReader for SequentialBatchLoader<R> {
+    fn next_batch(&mut self) -> Option<anyhow::Result<GenomeWorkspace>> {
+        self.next()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::data::methylation::MethylationCoverage;
@@ -199,7 +208,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 1, 1, 0.8, false);
+        let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
         for ws in batch_loader {
             let workspace = ws?.get_workspace();
@@ -260,7 +269,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 1, 1, 0.8, false);
+        let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
         let mut num_batches = 0;
         for ws in batch_loader {
@@ -317,7 +326,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 2, 1, 0.8, false);
+        let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
         for ws in batch_loader {
             assert!(ws.is_err());
@@ -362,7 +371,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 2, 1, 0.8, false);
+        let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             for ws in batch_loader {
@@ -414,7 +423,7 @@ mod tests {
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
 
-        let batch_loader = BatchLoader::new(reader, assembly, 3, 1, 0.8, true);
+        let batch_loader = SequentialBatchLoader::new(reader, assembly, 3, 1, 0.8, true);
 
         for ws in batch_loader {
             assert_eq!(ws.unwrap().get_workspace().len(), 2);
