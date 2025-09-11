@@ -37,10 +37,14 @@ pub fn parallel_processer(
     let reader = epimetheus_support::zipper::reader::PileupReader::from_path(&file)?;
     let contigs_in_index: HashSet<String> = reader.available_contigs().into_iter().collect();
 
-    let filtered_contigs: Vec<(&String, &Contig)> = contigs
-        .iter()
-        .filter(|(contig_id, _)| allow_mismatch || contigs_in_index.contains(*contig_id))
-        .collect();
+    let filtered_contigs: Vec<(&String, &Contig)> = if allow_mismatch {
+        contigs
+            .iter()
+            .filter(|(contig_id, _)| contigs_in_index.contains(*contig_id))
+            .collect()
+    } else {
+        contigs.iter().collect()
+    };
 
     let methylation = filtered_contigs
         .par_iter()
