@@ -547,6 +547,7 @@ version = "0.6.2"
 dependencies = [
  "anyhow",
  "clap",
+ "criterion",
  "env_logger",
  "epimetheus-core",
  "epimetheus-support",

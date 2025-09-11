@@ -12,3 +12,10 @@ humantime = {workspace = true }
 log = {workspace = true }
 env_logger = {workspace = true }
 anyhow = {workspace = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "methylation_pattern_bench"
+harness = false
