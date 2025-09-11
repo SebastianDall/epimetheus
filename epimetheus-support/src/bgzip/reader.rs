@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use log::info;
 use methylome::{ModType, Strand};
 // use log::{error, info, warn};
 use rust_htslib::tbx::{Read, Reader};
@@ -82,6 +83,8 @@ pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
         pileup_records.extend(records);
     }
 
+    info!("Writing {} contigs.", requested_contigs.len());
+
     match &args.output {
         Some(out) => {
             let file = File::create(out)?;
@@ -158,7 +161,7 @@ impl fmt::Display for PileupRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.contig,
             self.start,
             self.end,
