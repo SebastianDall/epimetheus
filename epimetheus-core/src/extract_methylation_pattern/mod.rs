@@ -1,18 +1,14 @@
-use anyhow::{Context, Result, bail};
-use humantime::format_duration;
-use log::{debug, error, info, warn};
+use anyhow::{Context, Result};
+use log::{info, warn};
 use std::{
     io::{BufWriter, Write},
     path::Path,
-    time::Instant,
 };
 
 use crate::{
     data_load::load_contigs,
-    extract_methylation_pattern::reader::set_reader_strategy,
-    processing::{
-        MotifMethylationDegree, calculate_contig_read_methylation_pattern, create_motifs,
-    },
+    extract_methylation_pattern::reader::{parallel_processer, sequential_processer},
+    processing::create_motifs,
     utils::create_output_file,
 };
 
@@ -30,6 +26,10 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
         "Running epimetheus 'methylation-pattern' with {} threads",
         &args.threads
     );
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(args.threads)
+        .build()
+        .expect("Could not initialize threadpool");
 
     let outpath = Path::new(&args.output);
     create_output_file(&outpath)?;
@@ -61,77 +61,27 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
         warn!("Mismatch between contigs in pileup and assembly is allowed.");
     }
     let file = Path::new(&args.pileup);
-    let mut batch_loader = set_reader_strategy(
-        file,
-        contigs,
-        args.batch_size,
-        args.min_valid_read_coverage,
-        args.min_valid_cov_to_diff_fraction,
-        args.allow_assembly_pileup_mismatch,
-        Some(args.threads),
-    )?;
 
-    let mut methylation_pattern_results: Vec<MotifMethylationDegree> = Vec::new();
-
-    let mut batch_processing_time = Instant::now();
-    let mut contigs_processed = 0;
-    loop {
-        match batch_loader.next_batch() {
-            Some(ws_result) => match ws_result {
-                Ok(workspace) => {
-                    debug!("Workspace initialized");
-                    let contigs_in_batch = workspace.get_workspace().len() as u32;
-                    let mut methylation_pattern = calculate_contig_read_methylation_pattern(
-                        workspace,
-                        motifs.clone(),
-                        args.threads,
-                    )?;
-                    methylation_pattern_results.append(&mut methylation_pattern);
-
-                    contigs_processed += contigs_in_batch;
-                    let elapsed_batch_processing_time = batch_processing_time.elapsed();
-                    info!(
-                        "Finished processing {} contigs. Processing time: {}",
-                        contigs_processed,
-                        format_duration(elapsed_batch_processing_time).to_string()
-                    );
-                    batch_processing_time = Instant::now();
-                }
-                Err(e) => {
-                    error!("Error reading batch: {e}");
-                    bail!("Processing terminated due to error: {e}")
-                }
-            },
-            None => break,
-        }
-    }
-    // for ws_result in batch_loader {
-    //     match ws_result {
-    //         Ok(workspace) => {
-    //             debug!("Workspace initialized");
-    //             let contigs_in_batch = workspace.get_workspace().len() as u32;
-    //             let mut methylation_pattern = calculate_contig_read_methylation_pattern(
-    //                 workspace,
-    //                 motifs.clone(),
-    //                 args.threads,
-    //             )?;
-    //             methylation_pattern_results.append(&mut methylation_pattern);
-
-    //             contigs_processed += contigs_in_batch;
-    //             let elapsed_batch_processing_time = batch_processing_time.elapsed();
-    //             info!(
-    //                 "Finished processing {} contigs. Processing time: {}",
-    //                 contigs_processed,
-    //                 format_duration(elapsed_batch_processing_time).to_string()
-    //             );
-    //             batch_processing_time = Instant::now();
-    //         }
-    //         Err(e) => {
-    //             error!("Error reading batch: {e}");
-    //             bail!("Processing terminated due to error: {e}")
-    //         }
-    //     }
-    // }
+    let mut methylation_pattern_results = if file.extension().and_then(|s| s.to_str()) == Some("gz")
+    {
+        parallel_processer(
+            file,
+            &contigs,
+            motifs,
+            args.min_valid_read_coverage,
+            args.min_valid_cov_to_diff_fraction,
+        )?
+    } else {
+        sequential_processer(
+            file,
+            contigs,
+            motifs,
+            args.min_valid_read_coverage,
+            args.min_valid_cov_to_diff_fraction,
+            args.allow_assembly_pileup_mismatch,
+            args.threads,
+        )?
+    };
 
     methylation_pattern_results.sort_by(|a, b| a.contig.cmp(&b.contig));
 

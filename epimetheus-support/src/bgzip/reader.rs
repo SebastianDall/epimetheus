@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use log::info;
+use log::{debug, info};
 use methylome::{ModType, Strand};
 // use log::{error, info, warn};
 use rust_htslib::tbx::{Read, Reader};
@@ -8,6 +8,7 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
+    time::Instant,
 };
 
 use crate::bgzip::args::BgzipExtractArgs;
@@ -22,6 +23,7 @@ impl PileupRecordString {
 
 pub struct PileupReader {
     reader: Reader,
+    records: Vec<PileupRecordString>,
 }
 
 impl PileupReader {
@@ -29,10 +31,15 @@ impl PileupReader {
         let reader = Reader::from_path(p)
             .map_err(|e| anyhow!("Could not open file: {:?}. Error: {}", p, e.to_string()))?;
 
-        Ok(Self { reader })
+        Ok(Self {
+            reader,
+            records: Vec::with_capacity(500_000),
+        })
     }
 
     pub fn query_contig(&mut self, contig: &String) -> Result<Vec<PileupRecordString>> {
+        self.records.clear();
+        let io_start = Instant::now();
         let tid = self.reader.tid(contig).map_err(|e| {
             anyhow!(
                 "Failed to fetch contig '{}' in index: {}",
@@ -40,21 +47,26 @@ impl PileupReader {
                 e.to_string()
             )
         })?;
-
-        const UNREASONABLE_MAX: u64 = i64::MAX as u64;
-
         self.reader
-            .fetch(tid, 0, UNREASONABLE_MAX)
+            .fetch(tid, 0, i64::MAX as u64)
             .map_err(|e| anyhow!("Failed to fetch contig '{}': {}", contig, e.to_string()))?;
+        let io_duration = io_start.elapsed();
 
-        let mut results = Vec::new();
+        let mem_start = Instant::now();
+        let mut record_count = 0;
         for record in self.reader.records() {
             let record = record?;
             let pileup_str = PileupRecordString::new(String::from_utf8_lossy(&record).to_string());
-            results.push(pileup_str);
+            self.records.push(pileup_str);
+            record_count += 1;
         }
+        let mem_duration = mem_start.elapsed();
+        debug!(
+            "Contig {}: I/O took {:?}, Processing {} records took {:?}",
+            &contig, io_duration, record_count, mem_duration
+        );
 
-        Ok(results)
+        Ok(std::mem::take(&mut self.records))
     }
 
     pub fn available_contigs(&self) -> Vec<String> {

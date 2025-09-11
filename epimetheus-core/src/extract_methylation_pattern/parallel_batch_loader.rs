@@ -139,7 +139,7 @@ impl BatchReader for ParallelBatchLoader {
     }
 }
 
-fn process_contig(
+pub fn process_contig(
     reader: &mut PileupReader,
     assembly_contig: &Contig,
     min_valid_read_coverage: u32,
