@@ -1,8 +1,9 @@
+use epimetheus_support::bgzip::reader::PileupReader;
 use humantime::format_duration;
 use log::{debug, error, info};
 use methylome::Motif;
 use rayon::prelude::*;
-use std::{path::Path, time::Instant};
+use std::{cell::RefCell, collections::HashSet, path::Path, time::Instant};
 
 use crate::{
     data::{GenomeWorkspace, contig::Contig},
@@ -21,30 +22,51 @@ pub trait BatchReader {
     fn next_batch(&mut self) -> Option<Result<GenomeWorkspace>>;
 }
 
+thread_local! {
+    static READER: RefCell<Option<PileupReader>> = RefCell::new(None);
+}
+
 pub fn parallel_processer(
     file: &Path,
     contigs: &AHashMap<String, Contig>,
     motifs: Vec<Motif>,
     min_valid_read_coverage: u32,
     min_valid_cov_to_diff_fraction: f32,
+    allow_mismatch: bool,
 ) -> Result<Vec<MotifMethylationDegree>> {
-    let methylation = contigs
+    let reader = epimetheus_support::zipper::reader::PileupReader::from_path(&file)?;
+    let contigs_in_index: HashSet<String> = reader.available_contigs().into_iter().collect();
+
+    let filtered_contigs: Vec<(&String, &Contig)> = contigs
+        .iter()
+        .filter(|(contig_id, _)| allow_mismatch || contigs_in_index.contains(*contig_id))
+        .collect();
+
+    let methylation = filtered_contigs
         .par_iter()
         .map(
             |(_contig_id, contig)| -> Result<Vec<MotifMethylationDegree>> {
-                let mut reader = epimetheus_support::zipper::reader::PileupReader::from_path(file)?;
+                READER.with(|reader_cell| {
+                    let mut reader_opt = reader_cell.borrow_mut();
+                    if reader_opt.is_none() {
+                        match PileupReader::from_path(file) {
+                            Ok(reader) => *reader_opt = Some(reader),
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    let reader = reader_opt.as_mut().unwrap();
 
-                let contig_w_meth = process_contig(
-                    &mut reader,
-                    contig,
-                    min_valid_read_coverage,
-                    min_valid_cov_to_diff_fraction,
-                )?;
-
-                let meth_pattern =
-                    calculate_contig_read_methylation_single(&contig_w_meth, motifs.clone())?;
-
-                Ok(meth_pattern)
+                    let contig_w_meth = process_contig(
+                        reader,
+                        contig,
+                        min_valid_read_coverage,
+                        min_valid_cov_to_diff_fraction,
+                    )?;
+                    Ok(calculate_contig_read_methylation_single(
+                        &contig_w_meth,
+                        motifs.clone(),
+                    )?)
+                })
             },
         )
         .collect::<Result<Vec<Vec<_>>>>()?

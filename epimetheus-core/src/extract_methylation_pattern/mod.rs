@@ -70,6 +70,7 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
             motifs,
             args.min_valid_read_coverage,
             args.min_valid_cov_to_diff_fraction,
+            args.allow_assembly_pileup_mismatch,
         )?
     } else {
         sequential_processer(
