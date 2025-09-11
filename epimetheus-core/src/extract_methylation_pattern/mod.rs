@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use humantime::format_duration;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{
     io::{BufWriter, Write},
     path::Path,
@@ -57,6 +57,9 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
     info!("Total contigs in assembly: {}", contigs.len());
 
     info!("Processing Pileup");
+    if args.allow_assembly_pileup_mismatch {
+        warn!("Mismatch between contigs in pileup and assembly is allowed.");
+    }
     let file = Path::new(&args.pileup);
     let mut batch_loader = set_reader_strategy(
         file,

@@ -76,31 +76,22 @@ pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
     }
 
     let requested_contigs = args.resolve_contigs()?;
-
-    let mut pileup_records = Vec::new();
-    for c in &requested_contigs {
-        let records = pileup_reader.query_contig(&c)?;
-        pileup_records.extend(records);
-    }
-
     info!("Writing {} contigs.", &requested_contigs.len());
 
-    match &args.output {
+    let mut writer: Box<dyn Write> = match &args.output {
         Some(out) => {
             let file = File::create(out)?;
-            let mut writer = BufWriter::new(file);
-
-            for rec in pileup_records {
-                let pileup_rec = PileupRecord::try_from(rec)?;
-                writeln!(writer, "{}", pileup_rec)?;
-            }
+            Box::new(BufWriter::new(file))
         }
-        None => {
-            let mut writer = BufWriter::new(std::io::stdout());
-            for rec in pileup_records {
-                let pileup_rec = PileupRecord::try_from(rec)?;
-                writeln!(writer, "{}", pileup_rec)?;
-            }
+        None => Box::new(BufWriter::new(std::io::stdout())),
+    };
+
+    for c in &requested_contigs {
+        let records = pileup_reader.query_contig(&c)?;
+
+        for rec in records {
+            let pileup_rec = PileupRecord::try_from(rec)?;
+            writeln!(writer, "{}", pileup_rec)?;
         }
     }
 

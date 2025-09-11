@@ -4,7 +4,6 @@ use ahash::AHashMap;
 use anyhow::Result;
 use csv::StringRecord;
 use epimetheus_support::bgzip::reader::PileupReader;
-use log::warn;
 use rayon::prelude::*;
 
 use crate::{
@@ -66,10 +65,6 @@ impl Iterator for ParallelBatchLoader {
                 .collect::<Vec<String>>(),
             None => contigs_in_pileup,
         };
-
-        if self.allow_mismatch {
-            warn!("Mismatch between contigs in pileup and assembly is allowed.");
-        }
 
         let batch: Vec<String> = contigs_to_be_processed
             .into_iter()
