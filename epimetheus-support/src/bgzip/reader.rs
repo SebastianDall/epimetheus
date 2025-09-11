@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use methylome::{ModType, Strand};
 // use log::{error, info, warn};
 use rust_htslib::tbx::{Read, Reader};
@@ -64,7 +64,6 @@ impl PileupReader {
 }
 
 pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
-    args.resolve_contigs()?;
     let mut pileup_reader = PileupReader::from_path(Path::new(&args.input))?;
     let contigs = pileup_reader.available_contigs();
 
@@ -75,14 +74,11 @@ pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
         return Ok(());
     }
 
-    let requested_contigs = match &args.contigs {
-        Some(contigs) => contigs,
-        None => bail!("No contigs requested"),
-    };
+    let requested_contigs = args.resolve_contigs()?;
 
     let mut pileup_records = Vec::new();
     for c in requested_contigs {
-        let records = pileup_reader.query_contig(c)?;
+        let records = pileup_reader.query_contig(&c)?;
         pileup_records.extend(records);
     }
 

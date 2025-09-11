@@ -97,7 +97,6 @@ pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::io::Write;
     use tempfile::NamedTempFile;
 

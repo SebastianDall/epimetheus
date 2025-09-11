@@ -52,7 +52,7 @@ pub struct BgzipExtractArgs {
         short,
         long,
         required = false,
-        help = "Path to output pileup file [.bed.gz]."
+        help = "Path to output pileup file [.bed]."
     )]
     pub output: Option<String>,
 
