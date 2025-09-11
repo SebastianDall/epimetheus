@@ -78,7 +78,7 @@ pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
     let requested_contigs = args.resolve_contigs()?;
 
     let mut pileup_records = Vec::new();
-    for c in requested_contigs {
+    for c in &requested_contigs {
         let records = pileup_reader.query_contig(&c)?;
         pileup_records.extend(records);
     }
