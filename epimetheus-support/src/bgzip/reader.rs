@@ -64,6 +64,7 @@ impl PileupReader {
 }
 
 pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
+    args.resolve_contigs()?;
     let mut pileup_reader = PileupReader::from_path(Path::new(&args.input))?;
     let contigs = pileup_reader.available_contigs();
 
