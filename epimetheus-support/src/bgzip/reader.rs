@@ -83,7 +83,7 @@ pub fn extract_from_pileup(args: &BgzipExtractArgs) -> Result<()> {
         pileup_records.extend(records);
     }
 
-    info!("Writing {} contigs.", requested_contigs.len());
+    info!("Writing {} contigs.", &requested_contigs.len());
 
     match &args.output {
         Some(out) => {
