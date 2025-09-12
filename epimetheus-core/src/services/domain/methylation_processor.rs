@@ -3,7 +3,7 @@ use csv::StringRecord;
 
 use crate::{
     models::contig::Contig,
-    services::{parse_pileup_record::parse_to_methylation_record, traits::PileupReader},
+    services::{domain::parse_pileup_record::parse_to_methylation_record, traits::PileupReader},
 };
 
 pub fn process_contig<R: PileupReader>(

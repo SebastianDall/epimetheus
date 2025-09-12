@@ -10,7 +10,7 @@ use anyhow::Result;
 use crate::{
     algorithms::methylation_pattern::calculate_contig_read_methylation_single,
     models::{contig::Contig, methylation::MotifMethylationDegree},
-    services::{methylation_processor::process_contig, traits::PileupReader},
+    services::{domain::methylation_processor::process_contig, traits::PileupReader},
 };
 
 pub fn parallel_processer<R: PileupReader + Clone>(
