@@ -5,7 +5,7 @@ use epimetheus_core::{
         contig::Contig,
         genome_workspace::{GenomeWorkspace, GenomeWorkspaceBuilder},
     },
-    services::{parse_pileup_record::parse_to_methylation_record, traits::BatchLoader},
+    services::{domain::parse_pileup_record::parse_to_methylation_record, traits::BatchLoader},
 };
 use log::{debug, warn};
 use std::io::BufRead;
@@ -159,9 +159,27 @@ impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
     }
 }
 
-impl<R: BufRead> BatchLoader<GenomeWorkspace> for SequentialBatchLoader<R> {
+impl BatchLoader<GenomeWorkspace> for SequentialBatchLoader<std::io::BufReader<std::fs::File>> {
     fn next_batch(&mut self) -> Option<anyhow::Result<GenomeWorkspace>> {
         self.next()
+    }
+
+    fn new(
+        reader: std::io::BufReader<std::fs::File>,
+        assembly: AHashMap<String, Contig>,
+        batch_size: usize,
+        min_valid_read_coverage: u32,
+        min_valid_cov_to_diff_fraction: f32,
+        allow_mismatch: bool,
+    ) -> Self {
+        SequentialBatchLoader::new(
+            reader,
+            assembly,
+            batch_size,
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+            allow_mismatch,
+        )
     }
 }
 
