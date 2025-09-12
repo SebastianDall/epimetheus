@@ -573,6 +573,7 @@ dependencies = [
  "indicatif",
  "log",
  "methylome",
+ "pyo3",
  "rayon",
  "tempfile",
 ]

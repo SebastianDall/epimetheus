@@ -13,6 +13,6 @@ name = "epymetheus"
 
 [dependencies]
 pyo3 = { version = "*", features = ["extension-module"]}
-epimetheus-core = { path = "../epimetheus-core"}
+epimetheus-core = { path = "../epimetheus-core", features = ["pyo3"]}
 epimetheus-io = { path = "../epimetheus-io"}
 methylome = { path = "../methylome"}

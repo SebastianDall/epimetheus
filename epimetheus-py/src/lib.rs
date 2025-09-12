@@ -1,6 +1,7 @@
+use epimetheus_core::models::pileup::PileupRecord;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
-use methylome::{ModType, Strand};
+use epimetheus_io::compression::bgzip::compressor::zip_pileup;
 use pyo3::prelude::*;
 use std::path::Path;
 
@@ -54,18 +55,33 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
-// #[pyfunction]
-// fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<Vec<String>> {
-//     let mut reader = epimetheus_io::readers::bedgz::Reader::from_path(Path::new(pileup_path))
-//         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+#[pyfunction]
+fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<Vec<PileupRecord>> {
+    let mut reader = epimetheus_io::readers::bedgz::Reader::from_path(Path::new(pileup_path))
+        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-//     let query_pileup_records = query_pileup(&mut reader, &contigs)
-//         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-// }
+    let records = query_pileup(&mut reader, &contigs)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+    Ok(records)
+}
+
+#[pyfunction]
+fn bgzf_pileup(input: &str, output: Option<&str>, keep: bool, force: bool) -> PyResult<()> {
+    let output_path = output.map(Path::new);
+
+    zip_pileup(Path::new(input), output_path, keep, force)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+    Ok(())
+}
 
 #[pymodule]
 fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(methylation_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
+    m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
+    m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
+    m.add_class::<PileupRecord>()?;
     Ok(())
 }
