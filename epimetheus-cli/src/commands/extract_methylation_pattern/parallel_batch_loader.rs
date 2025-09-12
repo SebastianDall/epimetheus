@@ -139,30 +139,3 @@ impl BatchReader for ParallelBatchLoader {
     }
 }
 
-pub fn process_contig(
-    reader: &mut PileupReader,
-    assembly_contig: &Contig,
-    min_valid_read_coverage: u32,
-    min_valid_cov_to_diff_fraction: f32,
-) -> Result<Contig> {
-    let records = reader.query_contig(&assembly_contig.id)?;
-    let mut contig = assembly_contig.clone();
-
-    for record in records {
-        let pileup_line = StringRecord::from(record.0.split('\t').collect::<Vec<&str>>());
-        let methylation_record = parse_to_methylation_record(
-            contig.id.clone(),
-            &pileup_line,
-            min_valid_read_coverage,
-            min_valid_cov_to_diff_fraction,
-        )?;
-
-        if let Some(meth) = methylation_record {
-            contig.add_methylation_record(meth)?;
-        } else {
-            continue;
-        }
-    }
-
-    Ok(contig)
-}

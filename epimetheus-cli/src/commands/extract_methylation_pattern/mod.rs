@@ -1,4 +1,17 @@
+pub mod args;
+mod reader;
+
 use anyhow::{Context, Result};
+use epimetheus_core::{
+    algorithms::motif_processor::create_motifs,
+    services::{
+        parallel_processer::parallel_processer, sequential_processer::sequential_processer,
+    },
+};
+use epimetheus_io::{
+    loaders::sequential_batch_loader::SequentialBatchLoader,
+    readers::{bedgz, fasta::fasta_reader},
+};
 use log::{info, warn};
 use std::{
     io::{BufWriter, Write},
@@ -6,20 +19,8 @@ use std::{
 };
 
 use crate::{
-    data_load::load_contigs,
-    extract_methylation_pattern::reader::{parallel_processer, sequential_processer},
-    processing::create_motifs,
-    utils::create_output_file,
+    commands::extract_methylation_pattern::args::MethylationPatternArgs, utils::create_output_file,
 };
-
-pub mod args;
-pub mod batch_loader;
-pub mod parallel_batch_loader;
-mod reader;
-pub mod utils;
-
-pub use args::MethylationPatternArgs;
-pub use utils::parse_to_methylation_record;
 
 pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> {
     info!(
@@ -48,7 +49,7 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
     info!("Successfully parsed motifs.");
 
     info!("Loading assembly");
-    let contigs = load_contigs(&args.assembly)
+    let contigs = fasta_reader(&args.assembly)
         .with_context(|| format!("Error loading assembly from path: '{}'", args.assembly))?;
 
     if contigs.len() == 0 {
@@ -64,7 +65,7 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
 
     let mut methylation_pattern_results = if file.extension().and_then(|s| s.to_str()) == Some("gz")
     {
-        parallel_processer(
+        parallel_processer::<bedgz::Reader>(
             file,
             &contigs,
             motifs,
@@ -73,15 +74,17 @@ pub fn extract_methylation_pattern(args: &MethylationPatternArgs) -> Result<()> 
             args.allow_assembly_pileup_mismatch,
         )?
     } else {
-        sequential_processer(
-            file,
+        let file = std::fs::File::open(file)?;
+        let buf_reader = std::io::BufReader::new(file);
+        let mut batch_loader = SequentialBatchLoader::new(
+            buf_reader,
             contigs,
-            motifs,
+            100,
             args.min_valid_read_coverage,
             args.min_valid_cov_to_diff_fraction,
             args.allow_assembly_pileup_mismatch,
-            args.threads,
-        )?
+        );
+        sequential_processer(&mut batch_loader, motifs, args.threads)?
     };
 
     methylation_pattern_results.sort_by(|a, b| a.contig.cmp(&b.contig));
