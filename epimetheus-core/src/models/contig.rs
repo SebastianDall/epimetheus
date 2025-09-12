@@ -1,7 +1,7 @@
 use ahash::AHashMap;
 use anyhow::{Result, bail};
 
-use super::{MethylationRecord, methylation::*};
+use super::methylation::*;
 use methylome::{ModType, Strand};
 
 pub type ContigId = String;

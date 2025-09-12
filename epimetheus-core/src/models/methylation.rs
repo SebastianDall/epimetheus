@@ -1,4 +1,5 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
+use methylome::{ModType, Motif, Strand};
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct MethylationCoverage {
@@ -33,6 +34,46 @@ impl MethylationCoverage {
     pub fn fraction_modified(&self) -> f64 {
         self.n_modified as f64 / self.n_valid_cov as f64
     }
+}
+
+pub struct MethylationRecord {
+    pub contig: String,
+    pub position: usize,
+    pub strand: Strand,
+    pub mod_type: ModType,
+    pub methylation: MethylationCoverage,
+}
+
+impl MethylationRecord {
+    pub fn new(
+        contig: String,
+        position: usize,
+        strand: Strand,
+        mod_type: ModType,
+        methylation: MethylationCoverage,
+    ) -> Self {
+        Self {
+            contig,
+            position,
+            strand,
+            mod_type,
+            methylation,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_contig_id(&self) -> String {
+        self.contig.to_string()
+    }
+}
+
+pub struct MotifMethylationDegree {
+    pub contig: String,
+    pub motif: Motif,
+    pub median: f64,
+    pub mean_read_cov: f64,
+    pub n_motif_obs: u32,
+    pub motif_occurences_total: u32,
 }
 
 #[cfg(test)]

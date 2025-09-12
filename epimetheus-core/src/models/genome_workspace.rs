@@ -1,42 +1,7 @@
-pub mod contig;
-pub mod methylation;
-
-use crate::data::contig::Contig;
 use ahash::AHashMap;
-use anyhow::{bail, Result};
-use methylation::MethylationCoverage;
-use methylome::{ModType, Strand};
+use anyhow::{Result, bail};
 
-pub struct MethylationRecord {
-    contig: String,
-    position: usize,
-    strand: Strand,
-    mod_type: ModType,
-    methylation: MethylationCoverage,
-}
-
-impl MethylationRecord {
-    pub fn new(
-        contig: String,
-        position: usize,
-        strand: Strand,
-        mod_type: ModType,
-        methylation: MethylationCoverage,
-    ) -> Self {
-        Self {
-            contig,
-            position,
-            strand,
-            mod_type,
-            methylation,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_contig_id(&self) -> String {
-        self.contig.to_string()
-    }
-}
+use crate::models::{contig::Contig, methylation::MethylationRecord};
 
 pub struct GenomeWorkspaceBuilder {
     workspace: GenomeWorkspace,
@@ -106,11 +71,13 @@ impl GenomeWorkspace {
 
 #[cfg(test)]
 mod tests {
-    use crate::extract_methylation_pattern::parse_to_methylation_record;
+    use crate::models::methylation::MethylationCoverage;
+    use crate::services::parse_pileup_record::parse_to_methylation_record;
 
     use super::*;
     use anyhow::Result;
     use csv::ReaderBuilder;
+    use methylome::{ModType, Strand};
     use std::str::FromStr;
     use std::{
         fs::File,
