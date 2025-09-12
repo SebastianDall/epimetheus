@@ -1,5 +1,5 @@
 [package]
-name = "epimetheus-support"
+name = "epimetheus-io"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,14 +9,17 @@ repository.workspace = true
 
 [dependencies]
 methylome = { path = "../methylome" }
+epimetheus-core = { path = "../epimetheus-core" }
 clap = { workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
 rust-htslib = "*"
 bgzip = {version = "0.3.1", features = ["rayon"]}
+csv = { workspace = true }
 noodles-tabix = "0.57.0"
 noodles-csi = "0.51.0"
 ahash = "0.8.11"
+seq_io = "0.3.2"
 noodles-bgzf = "0.43.0"
 noodles-core = "0.18.0"
 

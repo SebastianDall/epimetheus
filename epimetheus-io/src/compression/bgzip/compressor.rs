@@ -3,41 +3,42 @@ use noodles_bgzf as bgzf;
 use noodles_core::Position;
 use noodles_csi::{self as csi, binning_index::index::reference_sequence::bin::Chunk};
 use noodles_tabix as tabix;
-use std::io::BufRead;
 use std::{
     fs::File,
-    io::{BufReader, Write},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
 };
 
-use crate::bgzip::args::BgzipWriterArgs;
-
-pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
-    let input_file = Path::new(&args.input);
-    info!("Starting compression of {}", &args.input);
-    if !&args.keep {
+pub fn zip_pileup(
+    input: &Path,
+    output: Option<&Path>,
+    keep: bool,
+    force: bool,
+) -> anyhow::Result<()> {
+    info!("Starting compression of {:#?}", input);
+    if !keep {
         warn!("Will remove uncompressed file after compression. Set --keep to change this.");
     }
 
-    let gz_output = match &args.output {
+    let gz_output = match output {
         Some(out) => {
             if !Path::new(&out).extension().map_or(false, |ext| ext == "gz") {
-                anyhow::bail!("Output file must have .gz extension: {}", out);
+                anyhow::bail!("Output file must have .gz extension: {:#?}", out);
             }
-            info!("Writing to file: {}", &out);
+            info!("Writing to file: {:#?}", &out);
             PathBuf::from(out)
         }
         None => {
-            let mut new_out = PathBuf::from(&args.input);
+            let mut new_out = PathBuf::from(input);
             new_out.set_extension("bed.gz");
             info!("No output set. Writing to {:?}", &new_out);
             new_out
         }
     };
 
-    if Path::exists(&gz_output) & !&args.force {
+    if Path::exists(&gz_output) & !force {
         error!("File '{}' already exists. Please delete the file before proceeding. Set --force to override.", &gz_output.display());
-    } else if args.force {
+    } else if force {
         warn!("Force set. Overwriting file: {}", &gz_output.display());
     }
 
@@ -46,7 +47,7 @@ pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
 
     let mut writer = File::create(&gz_output).map(bgzf::io::Writer::new)?;
 
-    let reader = File::open(&input_file)?;
+    let reader = File::open(input)?;
     let mut buf_reader = BufReader::new(reader);
     let mut line = String::new();
 
@@ -86,9 +87,9 @@ pub fn zip_pileup(args: &BgzipWriterArgs) -> anyhow::Result<()> {
     let mut writer = File::create(tab_outfile).map(tabix::io::Writer::new)?;
     writer.write_index(&index)?;
 
-    if !&args.keep {
-        info!("Removing file: {}", &args.input);
-        std::fs::remove_file(&args.input)?;
+    if !keep {
+        info!("Removing file: {:#?}", input);
+        std::fs::remove_file(input)?;
     }
 
     Ok(())
@@ -113,15 +114,8 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("test_output.bed.gz");
 
-        let args = BgzipWriterArgs {
-            input: input_file.path().to_string_lossy().to_string(),
-            output: Some(output_path.to_string_lossy().to_string()),
-            keep: true,
-            force: false,
-        };
-
         // Test the compression function
-        let result = zip_pileup(&args);
+        let result = zip_pileup(input_file.path(), Some(output_path.as_path()), true, false);
         assert!(result.is_ok(), "zip_pileup failed: {:?}", result.err());
 
         // Check that the compressed file was created
@@ -163,14 +157,7 @@ mod tests {
 
         let output_path = temp_dir.path().join("output.bed.gz");
 
-        let args = BgzipWriterArgs {
-            input: input_path.to_string_lossy().to_string(),
-            output: Some(output_path.to_string_lossy().to_string()),
-            keep: false,
-            force: false,
-        };
-
-        let result = zip_pileup(&args);
+        let result = zip_pileup(&input_path, Some(output_path.as_path()), false, false);
         assert!(result.is_ok(), "zip_pileup failed: {:?}", result.err());
 
         // Check that the original file was removed
@@ -197,14 +184,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("zero_coord.bed.gz");
 
-        let args = BgzipWriterArgs {
-            input: input_file.path().to_string_lossy().to_string(),
-            output: Some(output_path.to_string_lossy().to_string()),
-            keep: true,
-            force: false,
-        };
-
-        let result = zip_pileup(&args);
+        let result = zip_pileup(input_file.path(), Some(output_path.as_path()), true, false);
         assert!(
             result.is_ok(),
             "zip_pileup should handle zero coordinates: {:?}",
@@ -225,14 +205,12 @@ mod tests {
         writeln!(input_file, "chr1\t0\t100\tA\t50").unwrap();
         input_file.flush().unwrap();
 
-        let args = BgzipWriterArgs {
-            input: input_file.path().to_string_lossy().to_string(),
-            output: Some("invalid_extension.txt".to_string()),
-            keep: true,
-            force: false,
-        };
-
-        let result = zip_pileup(&args);
+        let result = zip_pileup(
+            input_file.path(),
+            Some(Path::new("invalid_extension.txt")),
+            true,
+            false,
+        );
         assert!(result.is_err(), "Should fail with invalid extension");
 
         let error_msg = result.unwrap_err().to_string();
