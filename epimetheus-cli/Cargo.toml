@@ -6,7 +6,9 @@ version.workspace = true
 [dependencies]
 clap = {version = "*", features = ["derive"]}
 epimetheus-core = {path = "../epimetheus-core"}
-epimetheus-support = {path = "../epimetheus-support"}
+epimetheus-io = {path = "../epimetheus-io"}
+rayon = { workspace = true }
+tempfile = { workspace = true }
 indicatif = {version = "0.17.8", features = ["rayon"]}
 humantime = {workspace = true }
 log = {workspace = true }

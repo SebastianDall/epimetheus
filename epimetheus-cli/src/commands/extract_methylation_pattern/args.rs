@@ -1,12 +1,14 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
 pub struct MethylationPatternArgs {
     #[arg(short, long, required = true, help = "Path to pileup.")]
-    pub pileup: String,
+    pub pileup: PathBuf,
 
     #[arg(short, long, required = true, help = "Path to assembly.")]
-    pub assembly: String,
+    pub assembly: PathBuf,
 
     #[arg(
         short,
@@ -14,13 +16,13 @@ pub struct MethylationPatternArgs {
         required = true,
         help = "Path to output file. Must be .tsv."
     )]
-    pub output: String,
+    pub output: PathBuf,
 
     #[arg(short, long, default_value_t = 1, help = "Number of parallel tasks.")]
     pub threads: usize,
 
     #[arg(short, long, required = true, num_args(1..), help = "Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'")]
-    pub motifs: Option<Vec<String>>,
+    pub motifs: Vec<String>,
 
     #[arg(
         long,
@@ -49,5 +51,5 @@ pub struct MethylationPatternArgs {
         default_value_t = false,
         help = "Allow epimetheus to continue if a contig in the pileup is not present in the assembly"
     )]
-    pub allow_assembly_pileup_mismatch: bool,
+    pub allow_mismatch: bool,
 }

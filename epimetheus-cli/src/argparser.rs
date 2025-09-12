@@ -1,9 +1,9 @@
-use crate::{
-    extract_methylation_pattern::args::MethylationPatternArgs,
+use clap::{Parser, Subcommand};
+
+use crate::commands::{
+    compression::args::BgZipArgs, extract_methylation_pattern::args::MethylationPatternArgs,
     motif_clustering::MotifClusteringArgs,
 };
-use clap::{Parser, Subcommand};
-use epimetheus_support::bgzip::args::BgZipArgs;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
