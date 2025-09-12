@@ -6,7 +6,10 @@ use std::time::Instant;
 
 use crate::{
     algorithms::methylation_pattern::calculate_contig_read_methylation_pattern,
-    models::{genome_workspace::GenomeWorkspace, methylation::MotifMethylationDegree},
+    models::{
+        genome_workspace::GenomeWorkspace,
+        methylation::{MethylationPattern, MotifMethylationDegree},
+    },
     services::traits::BatchLoader,
 };
 
@@ -14,7 +17,7 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
     loader: &mut L,
     motifs: Vec<Motif>,
     threads: usize,
-) -> Result<Vec<MotifMethylationDegree>> {
+) -> Result<MethylationPattern> {
     let mut methylation_pattern_results: Vec<MotifMethylationDegree> = Vec::new();
 
     let mut batch_processing_time = Instant::now();
@@ -52,5 +55,5 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
         }
     }
 
-    Ok(methylation_pattern_results)
+    Ok(MethylationPattern::new(methylation_pattern_results))
 }

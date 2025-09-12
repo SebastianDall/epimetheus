@@ -604,6 +604,7 @@ version = "0.6.2"
 dependencies = [
  "epimetheus-core",
  "epimetheus-io",
+ "methylome",
  "pyo3",
 ]
 

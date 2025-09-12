@@ -119,7 +119,7 @@ mod tests {
 
     use crate::{
         models::genome_workspace::GenomeWorkspaceBuilder,
-        services::domain::parse_pileup_record::parse_to_methylation_record,
+        services::domain::pileup_processor::parse_to_methylation_record,
     };
 
     use super::*;

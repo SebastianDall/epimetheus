@@ -1,7 +1,23 @@
 use methylome::{ModType, Strand};
 use std::fmt;
 
+// pub struct Pileup {
+//     records: Vec<PileupRecord>,
+// }
+
+// impl Pileup {
+//     pub fn new(records: Vec<PileupRecord>) -> Self {
+//         Self { records }
+//     }
+// }
+
 pub struct PileupRecordString(pub String);
+
+impl PileupRecordString {
+    pub fn new(_0: String) -> Self {
+        Self(_0)
+    }
+}
 pub struct PileupRecord {
     pub contig: String,
     pub start: u32,
@@ -76,11 +92,5 @@ impl fmt::Display for PileupRecord {
             self.n_diff,
             self.n_no_call,
         )
-    }
-}
-
-impl PileupRecordString {
-    pub fn new(_0: String) -> Self {
-        Self(_0)
     }
 }

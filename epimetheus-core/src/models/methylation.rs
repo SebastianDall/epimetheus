@@ -1,4 +1,9 @@
-use anyhow::{Result, bail};
+use std::{
+    io::{BufWriter, Write},
+    path::Path,
+};
+
+use anyhow::{Context, Result, bail};
 use methylome::{ModType, Motif, Strand};
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -64,6 +69,53 @@ impl MethylationRecord {
     #[allow(dead_code)]
     pub fn get_contig_id(&self) -> String {
         self.contig.to_string()
+    }
+}
+
+pub struct MethylationPattern {
+    meth: Vec<MotifMethylationDegree>,
+}
+
+impl MethylationPattern {
+    pub fn new(p: Vec<MotifMethylationDegree>) -> Self {
+        Self { meth: p }
+    }
+
+    pub fn sort_meth(&mut self) {
+        self.meth.sort_by(|a, b| a.contig.cmp(&b.contig))
+    }
+
+    pub fn write_output(self, path: &Path) -> Result<()> {
+        let outfile = std::fs::File::create(path)
+            .with_context(|| format!("Failed to create file at: {:?}", path))?;
+        let mut writer = BufWriter::new(outfile);
+
+        writeln!(
+            writer,
+            "contig\tmotif\tmod_type\tmod_position\tmedian\tmean_read_cov\tN_motif_obs\tmotif_occurences_total"
+        )?;
+
+        for entry in self.meth {
+            let motif_sequence = entry.motif.sequence_to_string();
+            let mod_type_str = entry.motif.mod_type.to_pileup_code();
+            let mod_position = entry.motif.mod_position;
+
+            writeln!(
+                writer,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                entry.contig,
+                motif_sequence,
+                mod_type_str,
+                mod_position,
+                entry.median,
+                entry.mean_read_cov,
+                entry.n_motif_obs,
+                entry.motif_occurences_total
+            )?;
+
+            writer.flush()?;
+        }
+        Ok(())
     }
 }
 

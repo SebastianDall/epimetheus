@@ -1,5 +1,5 @@
 use crate::{
-    models::genome_workspace::GenomeWorkspace,
+    models::{genome_workspace::GenomeWorkspace, methylation::MethylationPattern},
     services::{
         domain::{
             motif_processor::create_motifs, parallel_processer::parallel_processer,
@@ -10,22 +10,18 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use log::{info, warn};
-use std::{
-    io::{BufWriter, Write},
-    path::Path,
-};
+use std::path::Path;
 
 pub fn extract_methylation_pattern<R, A, B>(
     pileup: &Path,
     assembly: &Path,
-    output: &Path,
     threads: usize,
     motifs: &Vec<String>,
     min_valid_read_coverage: u32,
     batch_size: usize,
     min_valid_cov_to_diff_fraction: f32,
     allow_mismatch: bool,
-) -> Result<()>
+) -> Result<MethylationPattern>
 where
     R: PileupReader + Clone,
     A: FastaReader,
@@ -81,37 +77,7 @@ where
             sequential_processer(&mut batch_loader, motifs, threads)?
         };
 
-    methylation_pattern_results.sort_by(|a, b| a.contig.cmp(&b.contig));
+    methylation_pattern_results.sort_meth();
 
-    let outfile = std::fs::File::create(output)
-        .with_context(|| format!("Failed to create file at: {:?}", output))?;
-    let mut writer = BufWriter::new(outfile);
-
-    writeln!(
-        writer,
-        "contig\tmotif\tmod_type\tmod_position\tmedian\tmean_read_cov\tN_motif_obs\tmotif_occurences_total"
-    )?;
-
-    for entry in &methylation_pattern_results {
-        let motif_sequence = entry.motif.sequence_to_string();
-        let mod_type_str = entry.motif.mod_type.to_pileup_code();
-        let mod_position = entry.motif.mod_position;
-
-        writeln!(
-            writer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            entry.contig,
-            motif_sequence,
-            mod_type_str,
-            mod_position,
-            entry.median,
-            entry.mean_read_cov,
-            entry.n_motif_obs,
-            entry.motif_occurences_total
-        )?;
-
-        writer.flush()?;
-    }
-
-    Ok(())
+    Ok(methylation_pattern_results)
 }

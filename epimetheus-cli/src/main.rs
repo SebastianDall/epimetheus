@@ -35,14 +35,13 @@ fn main() -> Result<()> {
         argparser::Commands::MethylationPattern(methyl_args) => {
             create_output_file(&methyl_args.output)?;
 
-            extract_methylation_pattern::<
+            let meth_pattern = extract_methylation_pattern::<
                 GzPileupReader,
                 FastaReader,
                 SequentialBatchLoader<std::io::BufReader<std::fs::File>>,
             >(
                 &methyl_args.pileup,
                 &methyl_args.assembly,
-                &methyl_args.output,
                 methyl_args.threads,
                 &methyl_args.motifs,
                 methyl_args.min_valid_read_coverage,
@@ -50,6 +49,8 @@ fn main() -> Result<()> {
                 methyl_args.min_valid_cov_to_diff_fraction,
                 methyl_args.allow_mismatch,
             )?;
+
+            meth_pattern.write_output(&methyl_args.output)?;
         }
         argparser::Commands::MotifCluster(motif_cluster_args) => {
             create_output_file(&motif_cluster_args.output)?;

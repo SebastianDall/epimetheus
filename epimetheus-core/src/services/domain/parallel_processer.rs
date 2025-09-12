@@ -9,7 +9,11 @@ use anyhow::Result;
 
 use crate::{
     algorithms::methylation_pattern::calculate_contig_read_methylation_single,
-    models::{contig::Contig, methylation::MotifMethylationDegree},
+    models::{
+        contig::Contig,
+        methylation::{MethylationPattern, MotifMethylationDegree},
+        pileup::PileupRecord,
+    },
     services::{domain::methylation_processor::process_contig, traits::PileupReader},
 };
 
@@ -20,7 +24,7 @@ pub fn parallel_processer<R: PileupReader + Clone>(
     min_valid_read_coverage: u32,
     min_valid_cov_to_diff_fraction: f32,
     allow_mismatch: bool,
-) -> Result<Vec<MotifMethylationDegree>> {
+) -> Result<MethylationPattern> {
     let reader = R::from_path(&file)?;
     let contigs_in_index: HashSet<String> = reader.available_contigs().into_iter().collect();
 
@@ -59,5 +63,22 @@ pub fn parallel_processer<R: PileupReader + Clone>(
         .flatten()
         .collect();
 
-    Ok(methylation)
+    Ok(MethylationPattern::new(methylation))
+}
+
+pub fn query_pileup<R: PileupReader>(
+    reader: &mut R,
+    contigs: &[String],
+) -> Result<Vec<PileupRecord>> {
+    let mut all_records = Vec::new();
+
+    for c in contigs {
+        let records = reader.query_contig(&c)?;
+
+        for rec in records {
+            let pileup_rec = PileupRecord::try_from(rec)?;
+            all_records.push(pileup_rec);
+        }
+    }
+    Ok(all_records)
 }

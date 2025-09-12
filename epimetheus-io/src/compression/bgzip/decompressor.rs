@@ -1,5 +1,5 @@
 use anyhow::Result;
-use epimetheus_core::{models::pileup::PileupRecord, services::traits::PileupReader};
+use epimetheus_core::services::{domain::parallel_processer::query_pileup, traits::PileupReader};
 use log::info;
 use std::{
     fs::File,
@@ -26,6 +26,7 @@ pub fn extract_from_pileup(
     }
 
     info!("Writing {} contigs.", &contigs.len());
+    let records = query_pileup(&mut reader, &contigs)?;
 
     let mut writer: Box<dyn Write> = match output {
         Some(out) => {
@@ -35,13 +36,8 @@ pub fn extract_from_pileup(
         None => Box::new(BufWriter::new(std::io::stdout())),
     };
 
-    for c in &contigs {
-        let records = reader.query_contig(&c)?;
-
-        for rec in records {
-            let pileup_rec = PileupRecord::try_from(rec)?;
-            writeln!(writer, "{}", pileup_rec)?;
-        }
+    for r in records {
+        writeln!(writer, "{}", r)?;
     }
 
     Ok(())

@@ -72,7 +72,7 @@ impl GenomeWorkspace {
 #[cfg(test)]
 mod tests {
     use crate::models::methylation::MethylationCoverage;
-    use crate::services::domain::parse_pileup_record::parse_to_methylation_record;
+    use crate::services::domain::pileup_processor::parse_to_methylation_record;
 
     use super::*;
     use anyhow::Result;

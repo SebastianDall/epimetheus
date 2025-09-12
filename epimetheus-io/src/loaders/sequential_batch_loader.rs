@@ -5,7 +5,7 @@ use epimetheus_core::{
         contig::Contig,
         genome_workspace::{GenomeWorkspace, GenomeWorkspaceBuilder},
     },
-    services::{domain::parse_pileup_record::parse_to_methylation_record, traits::BatchLoader},
+    services::{domain::pileup_processor::parse_to_methylation_record, traits::BatchLoader},
 };
 use log::{debug, warn};
 use std::io::BufRead;
