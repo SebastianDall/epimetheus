@@ -445,9 +445,9 @@ dependencies = [
 
 [[package]]
 name = "csv-core"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
+checksum = "7d02f3b0da4c6504f86e9cd789d8dbafab48c2321be74e9987593de5a894d93d"
 dependencies = [
  "memchr",
 ]
@@ -550,10 +550,12 @@ dependencies = [
  "criterion",
  "env_logger",
  "epimetheus-core",
- "epimetheus-support",
+ "epimetheus-io",
  "humantime",
  "indicatif",
  "log",
+ "rayon",
+ "tempfile",
 ]
 
 [[package]]
@@ -567,11 +569,31 @@ dependencies = [
  "criterion",
  "csv",
  "env_logger",
- "epimetheus-support",
  "humantime",
+ "indicatif",
  "log",
  "methylome",
  "rayon",
+ "tempfile",
+]
+
+[[package]]
+name = "epimetheus-io"
+version = "0.6.2"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "bgzip",
+ "clap",
+ "csv",
+ "epimetheus-core",
+ "log",
+ "methylome",
+ "noodles-bgzf",
+ "noodles-core",
+ "noodles-csi",
+ "noodles-tabix",
+ "rust-htslib",
  "seq_io",
  "tempfile",
 ]
@@ -581,25 +603,8 @@ name = "epimetheus-py"
 version = "0.6.2"
 dependencies = [
  "epimetheus-core",
+ "epimetheus-io",
  "pyo3",
-]
-
-[[package]]
-name = "epimetheus-support"
-version = "0.6.2"
-dependencies = [
- "ahash",
- "anyhow",
- "bgzip",
- "clap",
- "log",
- "methylome",
- "noodles-bgzf",
- "noodles-core",
- "noodles-csi",
- "noodles-tabix",
- "rust-htslib",
- "tempfile",
 ]
 
 [[package]]
@@ -1442,9 +1447,9 @@ checksum = "d4f410fedcf71af0345d7607d246e7ad15faaadd49d240ee3b24e5dc21a820ac"
 
 [[package]]
 name = "seq_io"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86b213fabdebb1c56d330d1dbf92cef0257f3873b718eb2202bb73c707197e9c"
+checksum = "1303559e530ee83c1d7a8593a033792c2a29217544a5c48563e116e158d76ade"
 dependencies = [
  "buffer-redux",
  "crossbeam-utils",

@@ -1,4 +1,13 @@
 use pyo3::prelude::*;
+use std::path::Path;
+
+use epimetheus_core::services::application::{
+    methylation_pattern_service::extract_methylation_pattern,
+    motif_clustering_service::motif_clustering,
+};
+use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
+use epimetheus_io::readers::bedgz::Reader as GzPileupReader;
+use epimetheus_io::readers::fasta::Reader as FastaReader;
 
 #[pyfunction]
 fn methylation_pattern(
@@ -12,30 +21,31 @@ fn methylation_pattern(
     min_valid_cov_to_diff_fraction: f32,
     allow_assembly_pileup_mismatch: bool,
 ) -> PyResult<()> {
-    let args = epimetheus_core::extract_methylation_pattern::MethylationPatternArgs {
-        pileup: pileup.to_string(),
-        assembly: assembly.to_string(),
-        output: output.to_string(),
-        threads,
-        motifs: Some(motifs),
-        min_valid_read_coverage: min_valid_read_coverage as u32,
-        batch_size,
-        min_valid_cov_to_diff_fraction,
-        allow_assembly_pileup_mismatch,
-    };
-
-    Python::with_gil(|py| py.allow_threads(|| epimetheus_core::extract_methylation_pattern(&args)))
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    Python::with_gil(|py| {
+        py.allow_threads(|| {
+            extract_methylation_pattern::<
+                GzPileupReader,
+                FastaReader,
+                SequentialBatchLoader<std::io::BufReader<std::fs::File>>,
+            >(
+                Path::new(pileup),
+                Path::new(assembly),
+                Path::new(output),
+                threads,
+                &motifs,
+                min_valid_read_coverage as u32,
+                batch_size,
+                min_valid_cov_to_diff_fraction,
+                allow_assembly_pileup_mismatch,
+            )
+        })
+    })
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pyfunction]
 fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
-    let args = epimetheus_core::motif_clustering::MotifClusteringArgs {
-        output: output.to_string(),
-        motifs: Some(motifs),
-    };
-
-    Python::with_gil(|py| py.allow_threads(|| epimetheus_core::motif_clustering(&args)))
+    Python::with_gil(|py| py.allow_threads(|| motif_clustering(Path::new(output), &motifs)))
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 

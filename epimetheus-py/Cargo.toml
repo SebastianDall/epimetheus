@@ -14,3 +14,4 @@ name = "epymetheus"
 [dependencies]
 pyo3 = { version = "*", features = ["extension-module"]}
 epimetheus-core = { path = "../epimetheus-core"}
+epimetheus-io = { path = "../epimetheus-io"}
