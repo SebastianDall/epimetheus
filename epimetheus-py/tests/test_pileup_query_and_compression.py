@@ -1,6 +1,7 @@
 import os
 import tempfile
 import pytest
+import polars as pl
 from pathlib import Path
 from epymetheus import epymetheus
 
@@ -32,30 +33,49 @@ def test_bgzf_compression_and_query(data_dir, tmp_path):
     )
     assert len(records_contig3) > 0, "Should find records for contig_3"
     print(f"Found {len(records_contig3)} records for contig_3")
-    # Verify record properties
-    first_record = records_contig3[0]
-    assert hasattr(first_record, 'contig'), "Record should have contig attribute"
-    assert hasattr(first_record, 'start'), "Record should have start attribute"
-    assert hasattr(first_record, 'fraction_modified'), "Record should have fraction_modified attribute"
-    assert first_record.contig == "contig_3", "Record should belong to contig_3"
-    # Step 3: Query for non-existing contig (should fail or return empty)
-    try:
-        records_contig10 = epymetheus.query_pileup_records(
-            str(compressed_file),
-            ["contig_10"]
-        )
-        # If it doesn't raise an error, it should return empty
-        assert len(records_contig10) == 0, "Should return no records for non-existent contig_10"
-        print("Query for contig_10 returned empty results (expected)")
-    except Exception as e:
-        # It's also acceptable for it to raise an error
-        print(f"Query for contig_10 failed as expected: {e}")
+    
     # Cleanup is automatic with tmp_path fixture, but let's be explicit
     if compressed_file.exists():
         compressed_file.unlink()
     index_file = Path(f"{compressed_file}.tbi")
     if index_file.exists():
         index_file.unlink()
+
+def test_query_data(data_dir, tmp_path):
+    """Test querying multiple contigs and the data"""
+    pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
+
+    pileup_records = epymetheus.query_pileup_records(pileup_input, contigs=["contig_2","contig_3"])
+
+    df = pl.DataFrame(pileup_records)
+
+    assert df.columns == [
+        "contig",
+        "start",
+        "end",
+        "mod_type",
+        "score",
+        "strand",
+        "start_pos",
+        "end_pos",
+        "color",
+        "n_valid_cov",
+        "fraction_modified",
+        "n_modified",
+        "n_canonical",
+        "n_other_mod",
+        "n_delete",
+        "n_fail",
+        "n_diff",
+        "n_no_call",
+    ], "Colums do not match"
+
+    assert len(df.filter(pl.col("contig") == "contig_3")) > 0, "No records matched contig_3"
+    assert len(df.filter(pl.col("contig") == "contig_2")) > 0, "No records matched contig_2"
+    assert len(df.filter(pl.col("contig") == "contig_10")) == 0, "Records matched contig_10 contig 10 should not be present"
+    
+
+
 
 def test_bgzf_compression_with_auto_output(data_dir, tmp_path):
     """Test bgzf compression with automatic output naming"""

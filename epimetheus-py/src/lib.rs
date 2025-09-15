@@ -1,8 +1,8 @@
-use epimetheus_core::models::pileup::PileupRecord;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
 use epimetheus_io::compression::bgzip::compressor::zip_pileup;
 use pyo3::prelude::*;
+use pyo3::types;
 use std::path::Path;
 
 use epimetheus_core::services::application::{
@@ -56,14 +56,41 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<Vec<PileupRecord>> {
+fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyObject> {
     let mut reader = epimetheus_io::readers::bedgz::Reader::from_path(Path::new(pileup_path))
         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
     let records = query_pileup(&mut reader, &contigs)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
-    Ok(records)
+    Python::with_gil(|py| {
+        let list = types::PyList::empty(py);
+
+        for record in records {
+            let dict = types::PyDict::new(py);
+            dict.set_item("contig", record.contig)?;
+            dict.set_item("start", record.start)?;
+            dict.set_item("end", record.end)?;
+            dict.set_item("mod_type", record.mod_type.to_pileup_code().to_string())?;
+            dict.set_item("score", record.score)?;
+            dict.set_item("strand", record.strand.to_string())?;
+            dict.set_item("start_pos", record.start_pos)?;
+            dict.set_item("end_pos", record.end_pos)?;
+            dict.set_item("color", record.color)?;
+            dict.set_item("n_valid_cov", record.n_valid_cov)?;
+            dict.set_item("fraction_modified", record.fraction_modified)?;
+            dict.set_item("n_modified", record.n_modified)?;
+            dict.set_item("n_canonical", record.n_canonical)?;
+            dict.set_item("n_other_mod", record.n_other_mod)?;
+            dict.set_item("n_delete", record.n_delete)?;
+            dict.set_item("n_fail", record.n_fail)?;
+            dict.set_item("n_diff", record.n_diff)?;
+            dict.set_item("n_no_call", record.n_no_call)?;
+
+            list.append(dict)?;
+        }
+        Ok(list.into())
+    })
 }
 
 #[pyfunction]
@@ -82,6 +109,5 @@ fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
-    m.add_class::<PileupRecord>()?;
     Ok(())
 }
