@@ -1,9 +1,6 @@
 use methylome::{ModType, Strand};
 use std::fmt;
 
-#[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
-
 // pub struct Pileup {
 //     records: Vec<PileupRecord>,
 // }
@@ -22,7 +19,6 @@ impl PileupRecordString {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Clone)]
 pub struct PileupRecord {
     pub contig: String,
@@ -43,83 +39,6 @@ pub struct PileupRecord {
     pub n_fail: u32,
     pub n_diff: u32,
     pub n_no_call: u32,
-}
-
-#[cfg(feature = "pyo3")]
-#[pymethods]
-impl PileupRecord {
-    #[getter]
-    fn contig(&self) -> &str {
-        &self.contig
-    }
-    #[getter]
-    fn start(&self) -> u32 {
-        self.start
-    }
-    #[getter]
-    fn end(&self) -> u32 {
-        self.end
-    }
-    #[getter]
-    fn mod_type(&self) -> String {
-        self.mod_type.to_pileup_code().to_string()
-    }
-    #[getter]
-    fn score(&self) -> u32 {
-        self.score
-    }
-    #[getter]
-    fn strand(&self) -> String {
-        self.strand.to_string()
-    }
-    #[getter]
-    fn start_pos(&self) -> u32 {
-        self.start_pos
-    }
-    #[getter]
-    fn end_pos(&self) -> u32 {
-        self.end_pos
-    }
-    #[getter]
-    fn color(&self) -> &str {
-        &self.color
-    }
-    #[getter]
-    fn n_valid_cov(&self) -> u32 {
-        self.n_valid_cov
-    }
-    #[getter]
-    fn fraction_modified(&self) -> f64 {
-        self.fraction_modified
-    }
-    #[getter]
-    fn n_modified(&self) -> u32 {
-        self.n_modified
-    }
-    #[getter]
-    fn n_canonical(&self) -> u32 {
-        self.n_canonical
-    }
-    #[getter]
-    fn n_other_mod(&self) -> u32 {
-        self.n_other_mod
-    }
-    #[getter]
-    fn n_delete(&self) -> u32 {
-        self.n_delete
-    }
-    #[getter]
-    fn n_fail(&self) -> u32 {
-        self.n_fail
-    }
-    #[getter]
-    fn n_diff(&self) -> u32 {
-        self.n_diff
-    }
-    #[getter]
-    fn n_no_call(&self) -> u32 {
-        self.n_no_call
-    }
 }
 
 impl TryFrom<PileupRecordString> for PileupRecord {

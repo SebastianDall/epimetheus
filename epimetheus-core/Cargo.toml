@@ -6,7 +6,6 @@ version.workspace = true
 [dependencies]
 clap = { workspace = true }
 methylome = { path = "../methylome"}
-pyo3 = { version = "*", optional = true, features = ["extension-module"]}
 rayon = { workspace = true }
 log = {workspace = true }
 humantime = {workspace = true }
@@ -21,7 +20,3 @@ csv = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.5.1"
-
-[features]
-default = []
-pyo3 = ["dep:pyo3"]
