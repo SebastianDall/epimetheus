@@ -1,14 +1,16 @@
+use ahash::AHashMap;
 use anyhow::{Result, bail};
 use humantime::format_duration;
 use log::{debug, error, info};
 use methylome::Motif;
+use rayon::prelude::*;
 use std::time::Instant;
 
 use crate::{
     algorithms::methylation_pattern::calculate_contig_read_methylation_pattern,
     models::{
         genome_workspace::GenomeWorkspace,
-        methylation::{MethylationPattern, MotifMethylationDegree},
+        methylation::{MethylationOutput, MethylationPatternVariant, MotifMethylationPositions},
     },
     services::traits::BatchLoader,
 };
@@ -17,8 +19,9 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
     loader: &mut L,
     motifs: Vec<Motif>,
     threads: usize,
-) -> Result<MethylationPattern> {
-    let mut methylation_pattern_results: Vec<MotifMethylationDegree> = Vec::new();
+    output: &MethylationOutput,
+) -> Result<MethylationPatternVariant> {
+    let mut methylation_pattern_results: Vec<MethylationPatternVariant> = Vec::new();
 
     let mut batch_processing_time = Instant::now();
     let mut contigs_processed = 0;
@@ -28,12 +31,25 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
                 Ok(workspace) => {
                     debug!("Workspace initialized");
                     let contigs_in_batch = workspace.get_workspace().len() as u32;
-                    let mut methylation_pattern = calculate_contig_read_methylation_pattern(
+                    let methylation_pattern = calculate_contig_read_methylation_pattern(
                         workspace,
                         motifs.clone(),
                         threads,
                     )?;
-                    methylation_pattern_results.append(&mut methylation_pattern);
+
+                    let merged_results = match output {
+                        MethylationOutput::Raw => {
+                            MethylationPatternVariant::Raw(methylation_pattern)
+                        }
+                        MethylationOutput::Median => MethylationPatternVariant::Median(
+                            methylation_pattern.to_median_degrees(),
+                        ),
+
+                        MethylationOutput::WeightedMean => MethylationPatternVariant::WeightedMean(
+                            methylation_pattern.to_weighted_mean_degress(),
+                        ),
+                    };
+                    methylation_pattern_results.push(merged_results);
 
                     contigs_processed += contigs_in_batch;
                     let elapsed_batch_processing_time = batch_processing_time.elapsed();
@@ -55,5 +71,46 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
         }
     }
 
-    Ok(MethylationPattern::new(methylation_pattern_results))
+    let merged_results = match output {
+        MethylationOutput::Raw => {
+            let mut all_results = AHashMap::new();
+            for res in methylation_pattern_results {
+                if let MethylationPatternVariant::Raw(positions) = res {
+                    all_results.extend(positions.methylation);
+                }
+            }
+            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
+        }
+        MethylationOutput::Median => {
+            let collected = methylation_pattern_results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::Median(median) = meth {
+                        median
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::Median(collected)
+        }
+
+        MethylationOutput::WeightedMean => {
+            let collected = methylation_pattern_results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
+                        weighted_mean
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::WeightedMean(collected)
+        }
+    };
+
+    Ok(merged_results)
 }

@@ -1,3 +1,4 @@
+use anyhow::bail;
 use log::{error, info, warn};
 use noodles_bgzf as bgzf;
 use noodles_core::Position;
@@ -38,6 +39,7 @@ pub fn zip_pileup(
 
     if Path::exists(&gz_output) & !force {
         error!("File '{}' already exists. Please delete the file before proceeding. Set --force to override.", &gz_output.display());
+        bail!("File exists error");
     } else if force {
         warn!("Force set. Overwriting file: {}", &gz_output.display());
     }

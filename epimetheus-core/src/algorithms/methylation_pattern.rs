@@ -1,21 +1,22 @@
+use ahash::{AHashMap, HashMap};
 use anyhow::Result;
 use log::error;
-use methylome::{find_motif_indices_in_contig, motif::Motif};
+use methylome::{Strand, find_motif_indices_in_contig, motif::Motif};
 use rayon::prelude::*;
 
 use crate::models::{
-    contig::Contig,
+    contig::{Contig, ContigId, Position as ContigPosition},
     genome_workspace::GenomeWorkspace,
-    methylation::{MethylationCoverage, MotifMethylationDegree},
+    methylation::{MethylationCoverage, MotifMethylationPositions},
 };
 
 pub fn calculate_contig_read_methylation_single(
     contig: &Contig,
     motifs: Vec<Motif>,
-) -> Result<Vec<MotifMethylationDegree>> {
+) -> Result<MotifMethylationPositions> {
     let contig_seq = &contig.sequence;
 
-    let mut local_results = Vec::new();
+    let mut all_methylation_data = AHashMap::new();
 
     for motif in motifs.iter() {
         let mod_type = motif.mod_type;
@@ -29,83 +30,118 @@ pub fn calculate_contig_read_methylation_single(
         }
 
         // This is the actual number of motifs in the contig
-        let motif_occurences_total = fwd_indices.len() as u32 + rev_indices.len() as u32;
+        // let motif_occurences_total = fwd_indices.len() as u32 + rev_indices.len() as u32;
 
-        let mut fwd_methylation =
+        let fwd_methylation =
             contig.get_methylated_positions(&fwd_indices, methylome::Strand::Positive, mod_type);
-        let mut rev_methylation =
+        let rev_methylation =
             contig.get_methylated_positions(&rev_indices, methylome::Strand::Negative, mod_type);
 
-        fwd_methylation.append(&mut rev_methylation);
-
-        let methylation_data: Vec<MethylationCoverage> = fwd_methylation
+        let methylation_data_fwd: HashMap<
+            (ContigId, Motif, ContigPosition, Strand),
+            MethylationCoverage,
+        > = fwd_methylation
             .into_iter()
-            .filter_map(|maybe_cov| maybe_cov.cloned())
+            .filter_map(|(pos, maybe_cov)| {
+                maybe_cov.map(|meth| {
+                    (
+                        (contig.id.clone(), motif.clone(), pos, Strand::Positive),
+                        meth.clone(),
+                    )
+                })
+            })
             .collect();
 
-        if methylation_data.is_empty() {
+        let methylation_data_rev: HashMap<
+            (ContigId, Motif, ContigPosition, Strand),
+            MethylationCoverage,
+        > = rev_methylation
+            .into_iter()
+            .filter_map(|(pos, maybe_cov)| {
+                maybe_cov.map(|meth| {
+                    (
+                        (contig.id.clone(), motif.clone(), pos, Strand::Negative),
+                        meth.clone(),
+                    )
+                })
+            })
+            .collect();
+
+        if methylation_data_rev.is_empty() & methylation_data_fwd.is_empty() {
             continue;
         }
 
-        // This is number of motif obervations with methylation data
-        let n_motif_obs = methylation_data.len() as u32;
+        all_methylation_data.extend(methylation_data_fwd);
+        all_methylation_data.extend(methylation_data_rev);
 
-        let mean_read_cov = {
-            let total_cov: u64 = methylation_data
-                .iter()
-                .map(|cov| cov.get_n_valid_cov() as u64)
-                .sum();
-            total_cov as f64 / methylation_data.len() as f64
-        };
+        // // This is number of motif obervations with methylation data
+        // let n_motif_obs = methylation_data.len() as u32;
 
-        let mut fractions: Vec<f64> = methylation_data
-            .iter()
-            .map(|cov| cov.fraction_modified())
-            .collect();
+        // let mean_read_cov = {
+        //     let total_cov: u64 = methylation_data
+        //         .iter()
+        //         .map(|cov| cov.get_n_valid_cov() as u64)
+        //         .sum();
+        //     total_cov as f64 / methylation_data.len() as f64
+        // };
 
-        fractions.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let median = if fractions.len() % 2 == 0 {
-            let mid = fractions.len() / 2;
-            (fractions[mid - 1] + fractions[mid]) / 2.0
-        } else {
-            fractions[fractions.len() / 2]
-        };
+        // let mut fractions: Vec<f64> = methylation_data
+        //     .iter()
+        //     .map(|cov| cov.fraction_modified())
+        //     .collect();
 
-        local_results.push(MotifMethylationDegree {
-            contig: contig.id.clone(),
-            motif: motif.clone(),
-            median,
-            mean_read_cov,
-            n_motif_obs,
-            motif_occurences_total,
-        })
+        // fractions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        // let median = if fractions.len() % 2 == 0 {
+        //     let mid = fractions.len() / 2;
+        //     (fractions[mid - 1] + fractions[mid]) / 2.0
+        // } else {
+        //     fractions[fractions.len() / 2]
+        // };
+
+        // local_results.push(MedianMotifMethylationDegree {
+        //     contig: contig.id.clone(),
+        //     motif: motif.clone(),
+        //     median,
+        //     mean_read_cov,
+        //     n_motif_obs,
+        //     motif_occurences_total,
+        // })
     }
 
-    Ok(local_results)
+    Ok(MotifMethylationPositions {
+        methylation: all_methylation_data,
+    })
 }
 
 pub fn calculate_contig_read_methylation_pattern(
     contigs: GenomeWorkspace,
     motifs: Vec<Motif>,
     num_threads: usize,
-) -> Result<Vec<MotifMethylationDegree>> {
+) -> Result<MotifMethylationPositions> {
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
         .expect("Could not initialize threadpool");
 
-    let results: Vec<MotifMethylationDegree> = contigs
+    let mut combined_contig_motif_methylation = AHashMap::new();
+    let results: Vec<MotifMethylationPositions> = contigs
         .get_workspace()
         .par_iter()
-        .flat_map(|(contig_id, contig)| {
+        .map(|(contig_id, contig)| {
             calculate_contig_read_methylation_single(contig, motifs.clone()).unwrap_or_else(|e| {
                 error!("Error processing contig {}: {}", contig_id, e);
-                Vec::new()
+                MotifMethylationPositions::new(AHashMap::new())
             })
         })
         .collect();
 
-    Ok(results)
+    for res in results {
+        combined_contig_motif_methylation.extend(res.methylation);
+    }
+
+    Ok(MotifMethylationPositions::new(
+        combined_contig_motif_methylation,
+    ))
 }
 
 #[cfg(test)]
@@ -187,24 +223,39 @@ mod tests {
             calculate_contig_read_methylation_pattern(workspace, motifs, 1).unwrap();
 
         let expected_median_result = vec![0.625, 1.0];
-        let meth_result: Vec<f64> = contig_methylation_pattern
+        let mut meth_result_median: Vec<f64> = contig_methylation_pattern
+            .to_median_degrees()
             .iter()
             .map(|res| res.median)
             .collect();
-        assert_eq!(meth_result, expected_median_result);
+        meth_result_median.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(meth_result_median, expected_median_result);
+
+        let expected_weighted_mean_result = vec![0.6, 1.0];
+        let mut meth_result_weighted_mean: Vec<f64> = contig_methylation_pattern
+            .to_weighted_mean_degress()
+            .iter()
+            .map(|res| res.w_mean)
+            .collect();
+        meth_result_weighted_mean.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(meth_result_weighted_mean, expected_weighted_mean_result);
 
         let expected_mean_read_cov = vec![18.75, 20.0];
-        let meth_result: Vec<f64> = contig_methylation_pattern
+        let mut meth_result: Vec<f64> = contig_methylation_pattern
+            .to_median_degrees()
             .iter()
             .map(|res| res.mean_read_cov)
             .collect();
+        meth_result.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(meth_result, expected_mean_read_cov);
 
-        let expected_n_motif_obs = vec![4, 1];
-        let meth_result: Vec<u32> = contig_methylation_pattern
+        let expected_n_motif_obs = vec![1, 4];
+        let mut meth_result: Vec<u32> = contig_methylation_pattern
+            .to_median_degrees()
             .iter()
             .map(|res| res.n_motif_obs)
             .collect();
+        meth_result.sort_by(|a, b| a.cmp(b));
         assert_eq!(meth_result, expected_n_motif_obs);
 
         Ok(())

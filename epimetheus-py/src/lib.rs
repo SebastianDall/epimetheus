@@ -1,3 +1,4 @@
+use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
 use epimetheus_io::compression::bgzip::compressor::zip_pileup;
@@ -24,6 +25,7 @@ fn methylation_pattern(
     batch_size: usize,
     min_valid_cov_to_diff_fraction: f32,
     allow_assembly_pileup_mismatch: bool,
+    output_type: MethylationOutput,
 ) -> PyResult<()> {
     Python::with_gil(|py| {
         py.allow_threads(|| {
@@ -41,6 +43,7 @@ fn methylation_pattern(
                 batch_size,
                 min_valid_cov_to_diff_fraction,
                 allow_assembly_pileup_mismatch,
+                &output_type,
             )?;
 
             meth_patthern.write_output(Path::new(output))

@@ -5,13 +5,14 @@ use super::methylation::*;
 use methylome::{ModType, Strand};
 
 pub type ContigId = String;
+pub type Position = usize;
 
 #[derive(Clone)]
 pub struct Contig {
     pub id: ContigId,
     pub sequence: String,
     sequence_len: usize,
-    pub methylated_positions: AHashMap<(usize, Strand, ModType), MethylationCoverage>,
+    pub methylated_positions: AHashMap<(Position, Strand, ModType), MethylationCoverage>,
 }
 
 impl Contig {
@@ -33,7 +34,7 @@ impl Contig {
         mod_type: ModType,
         meth_coverage: MethylationCoverage,
     ) -> Result<()> {
-        if position as usize >= self.sequence_len {
+        if position as Position >= self.sequence_len {
             bail!(
                 "Position out of bounds for '{}': Cannot insert key position ({}) longer than contig length ({})!",
                 self.id,
@@ -68,13 +69,13 @@ impl Contig {
 
     pub fn get_methylated_positions(
         &self,
-        positions: &[usize],
+        positions: &[Position],
         strand: Strand,
         mod_type: ModType,
-    ) -> Vec<Option<&MethylationCoverage>> {
+    ) -> Vec<(Position, Option<&MethylationCoverage>)> {
         positions
             .iter()
-            .map(|&pos| self.methylated_positions.get(&(pos, strand, mod_type)))
+            .map(|&pos| (pos, self.methylated_positions.get(&(pos, strand, mod_type))))
             .collect()
     }
 }
@@ -114,8 +115,11 @@ mod tests {
 
         let positions: Vec<usize> = vec![6, 12];
 
-        let meth_records =
-            contig.get_methylated_positions(&positions, Strand::Positive, ModType::SixMA);
+        let meth_records: Vec<Option<&MethylationCoverage>> = contig
+            .get_methylated_positions(&positions, Strand::Positive, ModType::SixMA)
+            .iter()
+            .map(|v| v.1)
+            .collect();
 
         // Ensure records match the expected values
         let binding = MethylationCoverage::new(1, 1).unwrap();
@@ -123,13 +127,21 @@ mod tests {
 
         assert_eq!(meth_records, expected);
 
-        let meth_records = contig.get_methylated_positions(&[13], Strand::Negative, ModType::SixMA);
+        let meth_records: Vec<Option<&MethylationCoverage>> = contig
+            .get_methylated_positions(&[13], Strand::Negative, ModType::SixMA)
+            .iter()
+            .map(|v| v.1)
+            .collect();
         let expected = vec![Some(&binding)];
 
         assert_eq!(meth_records, expected);
 
         let binding = MethylationCoverage::new(3, 3).unwrap();
-        let meth_records = contig.get_methylated_positions(&[8], Strand::Positive, ModType::FiveMC);
+        let meth_records: Vec<Option<&MethylationCoverage>> = contig
+            .get_methylated_positions(&[8], Strand::Positive, ModType::FiveMC)
+            .iter()
+            .map(|v| v.1)
+            .collect();
         assert_eq!(meth_records, vec![Some(&binding)])
     }
 

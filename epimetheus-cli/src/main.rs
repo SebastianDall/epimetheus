@@ -48,6 +48,7 @@ fn main() -> Result<()> {
                 methyl_args.batch_size,
                 methyl_args.min_valid_cov_to_diff_fraction,
                 methyl_args.allow_mismatch,
+                &methyl_args.output_type,
             )?;
 
             meth_pattern.write_output(&methyl_args.output)?;

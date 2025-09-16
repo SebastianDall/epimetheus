@@ -1,5 +1,8 @@
 use crate::{
-    models::{genome_workspace::GenomeWorkspace, methylation::MethylationPattern},
+    models::{
+        genome_workspace::GenomeWorkspace,
+        methylation::{MethylationOutput, MethylationPatternVariant},
+    },
     services::{
         domain::{
             motif_processor::create_motifs, parallel_processer::parallel_processer,
@@ -21,7 +24,8 @@ pub fn extract_methylation_pattern<R, A, B>(
     batch_size: usize,
     min_valid_cov_to_diff_fraction: f32,
     allow_mismatch: bool,
-) -> Result<MethylationPattern>
+    output_type: &MethylationOutput,
+) -> Result<MethylationPatternVariant>
 where
     R: PileupReader + Clone,
     A: FastaReader,
@@ -53,31 +57,31 @@ where
         warn!("Mismatch between contigs in pileup and assembly is allowed.");
     }
 
-    let mut methylation_pattern_results =
-        if pileup.extension().and_then(|s| s.to_str()) == Some("gz") {
-            parallel_processer::<R>(
-                pileup,
-                &contigs,
-                motifs,
-                min_valid_read_coverage,
-                min_valid_cov_to_diff_fraction,
-                allow_mismatch,
-            )?
-        } else {
-            let file = std::fs::File::open(pileup)?;
-            let buf_reader = std::io::BufReader::new(file);
-            let mut batch_loader = B::new(
-                buf_reader,
-                contigs,
-                batch_size,
-                min_valid_read_coverage,
-                min_valid_cov_to_diff_fraction,
-                allow_mismatch,
-            );
-            sequential_processer(&mut batch_loader, motifs, threads)?
-        };
+    let methylation_pattern_results = if pileup.extension().and_then(|s| s.to_str()) == Some("gz") {
+        parallel_processer::<R>(
+            pileup,
+            &contigs,
+            motifs,
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+            allow_mismatch,
+            output_type,
+        )?
+    } else {
+        let file = std::fs::File::open(pileup)?;
+        let buf_reader = std::io::BufReader::new(file);
+        let mut batch_loader = B::new(
+            buf_reader,
+            contigs,
+            batch_size,
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+            allow_mismatch,
+        );
+        sequential_processer(&mut batch_loader, motifs, threads, output_type)?
+    };
 
-    methylation_pattern_results.sort_meth();
+    // methylation_pattern_results.sort_meth();
 
     Ok(methylation_pattern_results)
 }

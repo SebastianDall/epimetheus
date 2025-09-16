@@ -2,6 +2,8 @@ use crate::{IupacBase, ModType};
 use anyhow::{bail, Result};
 use std::str::FromStr;
 
+pub type Position = u8;
+
 /// Represents a biological motif, which includes a nucleotide sequence,
 /// its modification type, and the position of the modification.
 ///
@@ -9,11 +11,11 @@ use std::str::FromStr;
 /// - `sequence`: A vector of IUPAC bases representing the motif sequence.
 /// - `mod_type`: The type of modification (e.g., 6mA, 5mC).
 /// - `mod_position`: The position of the modification within the sequence (0-indexed).
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Motif {
     pub sequence: Vec<IupacBase>,
     pub mod_type: ModType,
-    pub mod_position: u8,
+    pub mod_position: Position,
 }
 
 impl Motif {
@@ -214,16 +216,24 @@ impl Motif {
         if self.mod_type != child.mod_type {
             return false;
         };
-        if self.sequence.len() > child.sequence.len() { return false;}
+        if self.sequence.len() > child.sequence.len() {
+            return false;
+        }
 
         // The offset that aligns the two modification sites
         let mod_offset = child.mod_position as isize - self.mod_position as isize;
-        if mod_offset < 0 { return false;} // parent (self) would stick out of child.
+        if mod_offset < 0 {
+            return false;
+        } // parent (self) would stick out of child.
 
-        if mod_offset + self.sequence.len() as isize > child.sequence.len() as isize { return false; }
+        if mod_offset + self.sequence.len() as isize > child.sequence.len() as isize {
+            return false;
+        }
 
-        self.sequence.iter().zip(child.sequence[(mod_offset as usize)..].iter())
-            .all(|(p,c)| p.mask() & c.mask() != 0)
+        self.sequence
+            .iter()
+            .zip(child.sequence[(mod_offset as usize)..].iter())
+            .all(|(p, c)| p.mask() & c.mask() != 0)
     }
 
     /// Extend motif with N's

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use epimetheus_core::models::methylation::MethylationOutput;
 
 #[derive(Parser, Debug, Clone)]
 pub struct MethylationPatternArgs {
@@ -52,4 +53,11 @@ pub struct MethylationPatternArgs {
         help = "Allow epimetheus to continue if a contig in the pileup is not present in the assembly"
     )]
     pub allow_mismatch: bool,
+
+    #[arg(
+        long,
+        default_value_t = MethylationOutput::Median,
+        help = "Specify the type of methylation output type. Raw will give all motif methylations for each contig."
+    )]
+    pub output_type: MethylationOutput,
 }

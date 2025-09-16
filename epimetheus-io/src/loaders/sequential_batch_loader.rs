@@ -242,7 +242,7 @@ mod tests {
                         methylome::ModType::SixMA
                     )
                     .into_iter()
-                    .map(|rec| rec.unwrap().clone())
+                    .map(|(_pos, rec)| rec.unwrap().clone())
                     .collect::<Vec<MethylationCoverage>>(),
                 vec![MethylationCoverage::new(15, 15).unwrap()]
             );
@@ -304,7 +304,7 @@ mod tests {
                             methylome::ModType::SixMA
                         )
                         .into_iter()
-                        .map(|res| res.unwrap().clone())
+                        .map(|(_pos, res)| res.unwrap().clone())
                         .collect::<Vec<MethylationCoverage>>(),
                     vec![MethylationCoverage::new(5, 20).unwrap()]
                 );
