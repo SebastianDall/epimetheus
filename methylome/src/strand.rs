@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr};
 use anyhow::{bail, Result};
 
 /// Represents the DNA strand of reference.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
 pub enum Strand {
     Positive,
     Negative,

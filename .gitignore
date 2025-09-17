@@ -1,3 +1,6 @@
+*.bed.gz
+*.bed.gz.tbi
+CLAUDE.md
 .!.github
 epimetheus-venv
 .env

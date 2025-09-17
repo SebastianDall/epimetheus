@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-py"]
-default-members = ["methylome", "epimetheus-core", "epimetheus-cli"]
+members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-py", "epimetheus-io"]
+default-members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus-io"]
 
 
 [workspace.package]
@@ -19,6 +19,9 @@ clap = { version = "4.5.20", features = ["derive"] }
 anyhow = "1.0.94"
 log = "0.4.22"
 env_logger = "0.11.5"
+rayon = "1.10.0"
+csv = "*"
+tempfile = "*"
 humantime = "2.1.0"
 
 [workspace.metadata.release]

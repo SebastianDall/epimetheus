@@ -6,8 +6,18 @@ version.workspace = true
 [dependencies]
 clap = {version = "*", features = ["derive"]}
 epimetheus-core = {path = "../epimetheus-core"}
+epimetheus-io = {path = "../epimetheus-io"}
+rayon = { workspace = true }
+tempfile = { workspace = true }
 indicatif = {version = "0.17.8", features = ["rayon"]}
 humantime = {workspace = true }
 log = {workspace = true }
 env_logger = {workspace = true }
 anyhow = {workspace = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "methylation_pattern_bench"
+harness = false

@@ -3,21 +3,64 @@
 
 To use `epimetheus` it is therefore necessary to know which motifs to look for beforehand (epimetheus meaning hindsight or afterthought). [Nanomotif](https://github.com/MicrobialDarkMatter/nanomotif) can find motifs in metagenomic data using Nanopore methylation calls.
 
+## Python package
+This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
+Can be installed via `conda` or `pypi` using:
+
+```bash
+pip install epimetheus-py
+
+# or
+
+conda install -c conda-forge -c bioconda epymetheus
+```
 
 
-## Usage:
+## CLI Usage:
 ```bash
 Usage: epimetheus <COMMAND>
 
 Commands:
   methylation-pattern  
   motif-cluster        
+  bgzip                
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
+```
 
+### BGZF (recommended)
+The bed files can be compressed (often a factor of 8-10) to a tabbed gz file (BGZF) which allows for fast lookup with the hts-lib.
+To compress the file use:
+```bash
+Usage: epimetheus bgzip compress [OPTIONS] --input <INPUT>
+
+Options:
+  -i, --input <INPUT>    Path to output pileup file. [.bed].
+  -o, --output <OUTPUT>  Path to output pileup file [.bed.gz].
+      --keep             Setting flag will keep the original uncompressed file.
+      --force            Setting flag will override the file if exists.
+  -h, --help             Print help
+```
+
+
+This will allow for fast lookup, which speeds up the `methylation-pattern` by a factor of 6.
+This is highly recommended if pileup is accessed multiple times which it will in `nanomotif`.
+
+To look up a specific contig use the `decompress` command:
+
+```bash
+Usage: epimetheus bgzip decompress [OPTIONS] --input <INPUT>
+
+Options:
+  -i, --input <INPUT>                Path to output pileup file. [.bed.gz].
+  -o, --output <OUTPUT>              Path to output pileup file [.bed].
+      --ls                           list contig names in pileup.
+      --contigs <CONTIGS>...         Optional vector of contig ids to query. Left empty the whole pileup will be read.
+      --contigs-file <CONTIGS_FILE>  File with contig names in it.
+  -h, --help                         Print help
 ```
 
 ### methylation pattern
@@ -32,18 +75,21 @@ The return is a dataframe with:
 - motif: The motif sequence
 - mod_type: The modification type [6mA, 5mC, 4mC (as pileup codes)]
 - mod_position: The modification position in the motif sequence
-- median: The median motif read methyalation
+- methylation_value: see below
 - mean_read_cov: The mean read coverage for positions used in the median calculation
-- N_motif_obs: The number of motifs with methylation information above `min-valid-read-coverage`
-- motif_occurences_total: The total of occurences of the motif sequence in the contig.
+- n_motif_obs: The number of motifs with methylation information above `min-valid-read-coverage`
 
 
+Three output types are available:
+- median: Firstly the fraction of reads at motif positions is calculated and the median of these are returned.
+- weighted-mean: the fraction of reads modified weighted by the n_valid_coverage at those positions.
+- raw: Outputs the all motif positions and their n_modified and n_valid_cov
 ```bash
 Usage: epimetheus methylation-pattern [OPTIONS] --pileup <PILEUP> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
 
 Options:
   -p, --pileup <PILEUP>
-          Path to pileup.
+          Path to pileup. Can be .bed.gz (recommended see bgzip command) or .bed
   -a, --assembly <ASSEMBLY>
           Path to assembly.
   -o, --output <OUTPUT>
@@ -58,8 +104,10 @@ Options:
           Number of contigs to process at a time. Higher number will use more RAM. [default: 1000]
       --min-valid-cov-to-diff-fraction <MIN_VALID_COV_TO_DIFF_FRACTION>
           Required fraction of valid coverage relative to different read mapping. N_valid_cov / (N_valid_cov + N_diff) [default: 0.8]
-      --allow-assembly-pilup-mismatch
+      --allow-mismatch
           Allow epimetheus to continue if a contig in the pileup is not present in the assembly
+      --output-type <OUTPUT_TYPE>
+          Specify the type of methylation output type. Raw will give all motif methylations for each contig. [default: median] [possible values: raw, median, weighted-mean]
   -h, --help
           Print help
 ```
@@ -82,5 +130,3 @@ Options:
 ```
 
 
-## Python package
-This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
