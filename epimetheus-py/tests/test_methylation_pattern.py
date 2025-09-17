@@ -2,6 +2,7 @@ import os
 import tempfile
 import pytest
 from epymetheus import epymetheus
+from epymetheus.epymetheus import MethylationOutput
 
 def _normalize(s: str) -> str:
     return s.replace("\r\n", "\n").strip()
@@ -29,6 +30,7 @@ def test_methylation_pattern_median(data_dir, tmp_path):
         min_valid_read_coverage=3,
         min_valid_cov_to_diff_fraction=0.8,
         allow_assembly_pileup_mismatch=False,
+        output_type=MethylationOutput.Median
     )
 
     actual = outfile.read_text()
@@ -37,7 +39,7 @@ def test_methylation_pattern_median(data_dir, tmp_path):
 
 
 
-def test_methylation_pattern_median(data_dir, tmp_path):
+def test_methylation_pattern_weighted_mean(data_dir, tmp_path):
     pileup = os.path.join(data_dir, "geobacillus-plasmids.pileup.bed")
     assembly = os.path.join(data_dir, "geobacillus-plasmids.assembly.fasta")
     expected = os.path.join(data_dir, "expected_out_weighted_mean.tsv")
@@ -54,7 +56,7 @@ def test_methylation_pattern_median(data_dir, tmp_path):
         min_valid_read_coverage=3,
         min_valid_cov_to_diff_fraction=0.8,
         allow_assembly_pileup_mismatch=False,
-        "weighted-mean"
+        output_type=MethylationOutput.WeightedMean
     )
 
     actual = outfile.read_text()

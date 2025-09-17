@@ -1,3 +1,14 @@
+//! Python bindings for Epimetheus methylation analysis toolkit.
+//!
+//! This module provides Python bindings for the core Epimetheus functionality,
+//! allowing Python users to process methylation data from Nanopore sequencing.
+//!
+//! The main functions include:
+//! - `methylation_pattern`: Extract methylation patterns for DNA motifs
+//! - `remove_child_motifs`: Remove redundant child motifs through clustering
+//! - `query_pileup_records`: Query specific contigs from pileup files
+//! - `bgzf_pileup`: Compress pileup files using BGZF format
+
 use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
@@ -14,6 +25,28 @@ use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
 use epimetheus_io::readers::bedgz::Reader as GzPileupReader;
 use epimetheus_io::readers::fasta::Reader as FastaReader;
 
+/// Extract methylation patterns for specified DNA motifs from pileup data.
+///
+/// This function processes Nanopore methylation calls from a pileup file and extracts
+/// methylation patterns for the specified DNA motifs, writing the results to an output file.
+///
+/// Args:
+///     pileup (str): Path to the input pileup file (BED format, can be gzipped)
+///     assembly (str): Path to the assembly FASTA file
+///     output (str): Path for the output TSV file
+///     threads (int): Number of threads to use for parallel processing
+///     motifs (List[str]): List of DNA motifs to search for (e.g., ['GATC', 'CCWGG'])
+///     min_valid_read_coverage (int): Minimum number of valid reads required for a position
+///     batch_size (int): Number of records to process in each batch
+///     min_valid_cov_to_diff_fraction (float): Minimum fraction of valid coverage to difference coverage
+///     allow_assembly_pileup_mismatch (bool): Whether to allow mismatches between assembly and pileup
+///     output_type (MethylationOutput): Output format type
+///
+/// Returns:
+///     None
+///
+/// Raises:
+///     PyRuntimeError: If processing fails due to IO errors or data format issues
 #[pyfunction]
 fn methylation_pattern(
     pileup: &str,
@@ -52,12 +85,59 @@ fn methylation_pattern(
     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
+/// Remove child motifs from the output to avoid redundant patterns.
+///
+/// This function performs motif clustering to identify and remove child motifs
+/// that are subsets of parent motifs, reducing redundancy in the results.
+///
+/// Args:
+///     output (str): Path to the output file to process
+///     motifs (List[str]): List of motifs to analyze for parent-child relationships
+///
+/// Returns:
+///     None
+///
+/// Raises:
+///     PyRuntimeError: If clustering fails due to IO errors or processing issues
 #[pyfunction]
 fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
     Python::with_gil(|py| py.allow_threads(|| motif_clustering(Path::new(output), &motifs)))
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
+/// Query pileup records for specific contigs.
+///
+/// This function reads a pileup file and extracts all methylation records
+/// for the specified contigs, returning them as a list of dictionaries.
+///
+/// Args:
+///     pileup_path (str): Path to the pileup file (BED format, can be gzipped)
+///     contigs (List[str]): List of contig names to query
+///
+/// Returns:
+///     List[Dict]: List of dictionaries containing pileup record data with keys:
+///         - contig: Contig/chromosome name
+///         - start: Start position (0-based)
+///         - end: End position
+///         - mod_type: Modification type code
+///         - score: Quality score
+///         - strand: DNA strand (+ or -)
+///         - start_pos: Start position in the feature
+///         - end_pos: End position in the feature
+///         - color: Color code
+///         - n_valid_cov: Number of valid coverage reads
+///         - fraction_modified: Fraction of reads showing modification
+///         - n_modified: Number of modified reads
+///         - n_canonical: Number of canonical reads
+///         - n_other_mod: Number of other modification reads
+///         - n_delete: Number of deletion reads
+///         - n_fail: Number of failed reads
+///         - n_diff: Number of different reads
+///         - n_no_call: Number of no-call reads
+///
+/// Raises:
+///     PyIOError: If the pileup file cannot be read
+///     PyRuntimeError: If querying fails due to data processing issues
 #[pyfunction]
 fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyObject> {
     let mut reader = epimetheus_io::readers::bedgz::Reader::from_path(Path::new(pileup_path))
@@ -96,6 +176,23 @@ fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyO
     })
 }
 
+/// Compress a pileup file using BGZF compression.
+///
+/// This function compresses a pileup file using the BGZF (Blocked GZip Format)
+/// compression algorithm, which allows for efficient random access.
+///
+/// Args:
+///     input (str): Path to the input pileup file
+///     output (Optional[str]): Path for the compressed output file.
+///                           If None, adds .gz extension to input filename
+///     keep (bool): Whether to keep the original uncompressed file
+///     force (bool): Whether to overwrite existing output file
+///
+/// Returns:
+///     None
+///
+/// Raises:
+///     PyRuntimeError: If compression fails due to IO errors or file access issues
 #[pyfunction]
 fn bgzf_pileup(input: &str, output: Option<&str>, keep: bool, force: bool) -> PyResult<()> {
     let output_path = output.map(Path::new);
@@ -112,5 +209,6 @@ fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
+    m.add_class::<MethylationOutput>()?;
     Ok(())
 }
