@@ -17,7 +17,7 @@ pub enum BgZipCommands {
 
 #[derive(Parser, Debug, Clone)]
 pub struct BgzipWriterArgs {
-    #[arg(short, long, required = true, help = "Path to output pileup file.")]
+    #[arg(short, long, required = true, help = "Path to output pileup file. [.bed].")]
     pub input: PathBuf,
 
     #[arg(
@@ -45,7 +45,7 @@ pub struct BgzipWriterArgs {
 
 #[derive(Parser, Debug, Clone)]
 pub struct BgzipExtractArgs {
-    #[arg(short, long, required = true, help = "Path to output pileup file.")]
+    #[arg(short, long, required = true, help = "Path to output pileup file. [.bed.gz].")]
     pub input: PathBuf,
 
     #[arg(

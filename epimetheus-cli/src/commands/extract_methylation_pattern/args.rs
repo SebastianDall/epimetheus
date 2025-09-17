@@ -5,7 +5,12 @@ use epimetheus_core::models::methylation::MethylationOutput;
 
 #[derive(Parser, Debug, Clone)]
 pub struct MethylationPatternArgs {
-    #[arg(short, long, required = true, help = "Path to pileup.")]
+    #[arg(
+        short,
+        long,
+        required = true,
+        help = "Path to pileup. Can be .bed.gz (recommended see bgzip command) or .bed"
+    )]
     pub pileup: PathBuf,
 
     #[arg(short, long, required = true, help = "Path to assembly.")]
