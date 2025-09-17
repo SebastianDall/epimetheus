@@ -22,7 +22,7 @@ use epimetheus_core::services::application::{
     motif_clustering_service::motif_clustering,
 };
 use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
-use epimetheus_io::readers::bedgz::Reader as GzPileupReader;
+use epimetheus_io::readers::bgzf_bed::Reader as GzPileupReader;
 use epimetheus_io::readers::fasta::Reader as FastaReader;
 
 /// Extract methylation patterns for specified DNA motifs from pileup data.
@@ -140,7 +140,7 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 ///     PyRuntimeError: If querying fails due to data processing issues
 #[pyfunction]
 fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyObject> {
-    let mut reader = epimetheus_io::readers::bedgz::Reader::from_path(Path::new(pileup_path))
+    let mut reader = epimetheus_io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
     let records = query_pileup(&mut reader, &contigs)

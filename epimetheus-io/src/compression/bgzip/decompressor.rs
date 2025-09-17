@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use crate::readers::bedgz::Reader;
+use crate::readers::bgzf_bed::Reader;
 
 pub fn extract_from_pileup(
     input: &Path,

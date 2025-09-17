@@ -8,7 +8,7 @@ use epimetheus_core::services::application::{
 use epimetheus_io::compression::bgzip::compressor::zip_pileup;
 use epimetheus_io::compression::bgzip::decompressor::extract_from_pileup;
 use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
-use epimetheus_io::readers::bedgz::Reader as GzPileupReader;
+use epimetheus_io::readers::bgzf_bed::Reader as BgzipPileupReader;
 use epimetheus_io::readers::fasta::Reader as FastaReader;
 
 use humantime::format_duration;
@@ -36,7 +36,7 @@ fn main() -> Result<()> {
             create_output_file(&methyl_args.output)?;
 
             let meth_pattern = extract_methylation_pattern::<
-                GzPileupReader,
+                BgzipPileupReader,
                 FastaReader,
                 SequentialBatchLoader<std::io::BufReader<std::fs::File>>,
             >(

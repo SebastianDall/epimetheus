@@ -1,3 +1,3 @@
 pub mod bed;
-pub mod bedgz;
+pub mod bgzf_bed;
 pub mod fasta;
