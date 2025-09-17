@@ -34,8 +34,9 @@ jobs:
                       -e PYPI_TOKEN="$PYPI_TOKEN" \
                       -v "${{ github.workspace }}":/io \
                       -w /io \
+                      --entrypoint bash \
                       ghcr.io/pyo3/maturin:latest \
-                        bash -c "apt-get update && apt-get install -y pkg-config libssl-dev && maturin publish \
+                        -c "apt-get update && apt-get install -y pkg-config libssl-dev && maturin publish \
                           --manifest-path epimetheus-py/Cargo.toml \
                           --username __token__ \
                           --password \"$PYPI_TOKEN\""
