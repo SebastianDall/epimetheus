@@ -67,9 +67,9 @@ jobs:
           name: epimetheus-${{ matrix.name_suffix }}
           path: epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
 
-  release:
+  binary-release:
     runs-on: ubuntu-latest
-    needs: build-binaries
+    needs: pypi-release
 
     steps:
       - name: Download Binaries
@@ -116,7 +116,7 @@ jobs:
                       -v "${{ github.workspace }}":/io \
                       -w /io \
                       ghcr.io/pyo3/maturin:latest \
-                        publish \
+                        bash -c "apt-get update && apt-get install -y pkg-config libssl-dev && maturin publish \
                           --manifest-path epimetheus-py/Cargo.toml \
                           --username __token__ \
-                          --password "$PYPI_TOKEN"
+                          --password \"$PYPI_TOKEN\""
