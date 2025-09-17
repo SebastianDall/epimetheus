@@ -360,7 +360,10 @@ impl MethylationPatternVariant {
                     writer,
                     "contig\tmotif\tmod_type\tmod_position\tmethylation_value\tmean_read_cov\tn_motif_obs"
                 )?;
-                for deg in degrees {
+                let mut sorted_degrees = degrees.clone();
+                sorted_degrees.sort_by(|a, b| a.partial_cmp(b).expect("Ordering failed"));
+
+                for deg in sorted_degrees {
                     writeln!(writer, "{}", deg.to_csv_line('\t'))?;
                 }
             }
