@@ -8,9 +8,6 @@ name = "epimetheus_py"
 dynamic = ["version"]
 authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
-dependencies = [
-  "polars"
-]
 
 
 
