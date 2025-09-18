@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, Result};
 use log::{error, info, warn};
 use noodles_bgzf as bgzf;
 use noodles_core::Position;
@@ -6,17 +6,47 @@ use noodles_csi::{self as csi, binning_index::index::reference_sequence::bin::Ch
 use noodles_tabix as tabix;
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufWriter, Write},
     path::{Path, PathBuf},
 };
 
-pub fn zip_pileup(
-    input: &Path,
+pub struct Writer<W: Write> {
+    writer: bgzf::io::Writer<W>,
+    indexer: Option<tabix::index::Indexer>,
+}
+
+impl Writer<File> {
+    pub fn from_path(output: &Path) -> Result<Self> {
+        let writer = File::create(output).map(bgzf::io::Writer::new)?;
+        let mut indexer = tabix::index::Indexer::default();
+        indexer.set_header(csi::binning_index::index::header::Builder::bed().build());
+
+        Ok(Self {
+            writer,
+            indexer: Some(indexer),
+        })
+    }
+}
+
+impl Writer<BufWriter<std::io::Stdout>> {
+    pub fn to_stdout() -> Result<Self> {
+        let stdout = BufWriter::new(std::io::stdout());
+        let writer = bgzf::io::Writer::new(stdout);
+
+        Ok(Self {
+            writer,
+            indexer: None,
+        })
+    }
+}
+
+pub fn zip_pileup<R: BufRead>(
+    reader: R,
     output: Option<&Path>,
     keep: bool,
     force: bool,
 ) -> anyhow::Result<()> {
-    info!("Starting compression of {:#?}", input);
+    // info!("Starting compression of {:#?}", input);
     if !keep {
         warn!("Will remove uncompressed file after compression. Set --keep to change this.");
     }
@@ -44,13 +74,15 @@ pub fn zip_pileup(
         warn!("Force set. Overwriting file: {}", &gz_output.display());
     }
 
-    let mut indexer = tabix::index::Indexer::default();
-    indexer.set_header(csi::binning_index::index::header::Builder::bed().build());
+    let mut writer = Writer::from_path(&gz_output)?;
+
+    // let mut indexer = tabix::index::Indexer::default();
+    // indexer.set_header(csi::binning_index::index::header::Builder::bed().build());
 
     let mut writer = File::create(&gz_output).map(bgzf::io::Writer::new)?;
 
-    let reader = File::open(input)?;
-    let mut buf_reader = BufReader::new(reader);
+    // let reader = File::open(input)?;
+    let mut buf_reader = reader;
     let mut line = String::new();
 
     let mut start_position = writer.virtual_position();
