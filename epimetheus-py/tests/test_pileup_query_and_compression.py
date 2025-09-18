@@ -111,3 +111,9 @@ def test_bgzf_force_overwrite(data_dir, tmp_path):
     # File should still exist and have similar size
     new_size = output_file.stat().st_size
     assert abs(new_size - original_size) < 100, "File sizes should be similar"
+
+def test_list_contigs(data_dir):
+    pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
+    contigs = epymetheus.list_contigs_in_pileup(pileup_input)
+
+    assert contigs == ["contig_3", "contig_2"]

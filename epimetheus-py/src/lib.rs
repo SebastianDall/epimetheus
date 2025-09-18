@@ -176,6 +176,28 @@ fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyO
     })
 }
 
+/// List available contigs in pileup (requires bed.gz and bed.gz.tbi)
+///
+/// Args:
+///     pileup_path (str): Path to the pileup file (BED format, can be gzipped)
+///
+/// Returns:
+///     Vector of strings
+///
+/// Raises:
+///     PyIOError: If the pileup file cannot be read
+#[pyfunction]
+fn list_contigs_in_pileup(pileup_path: &str) -> PyResult<PyObject> {
+    let reader = epimetheus_io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
+        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+    let records = reader.available_contigs();
+    Python::with_gil(|py| {
+        let list = types::PyList::new(py, records)?;
+        Ok(list.into())
+    })
+}
+
 /// Compress a pileup file using BGZF compression.
 ///
 /// This function compresses a pileup file using the BGZF (Blocked GZip Format)
@@ -209,6 +231,7 @@ fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
+    m.add_function(wrap_pyfunction!(list_contigs_in_pileup, m)?)?;
     m.add_class::<MethylationOutput>()?;
     Ok(())
 }
