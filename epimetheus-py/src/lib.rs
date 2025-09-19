@@ -12,7 +12,6 @@
 use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
-use epimetheus_io::compression::bgzip::compressor::zip_pileup;
 use pyo3::prelude::*;
 use pyo3::types;
 use std::path::Path;

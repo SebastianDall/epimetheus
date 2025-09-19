@@ -2,6 +2,7 @@ use std::{fs::File, io::{BufRead, BufReader}, path::PathBuf};
 
 use anyhow::bail;
 use clap::{Args, Parser, Subcommand};
+use epimetheus_io::io::readers::bed::{InputReader, LineReader};
 
 #[derive(Args, Debug)]
 pub struct BgZipArgs {
@@ -17,14 +18,17 @@ pub enum BgZipCommands {
 
 #[derive(Parser, Debug, Clone)]
 pub struct BgzipWriterArgs {
-    #[arg(short, long, required = true, help = "Path to output pileup file. [.bed].")]
+    #[arg(short, long, required = false, help = "Path to output pileup file. [.bed].")]
     pub input: PathBuf,
+
+    #[arg(short = '-', long, required = false, default_value_t=false, help = "Read from stdin.")]
+    pub stdin: bool,
 
     #[arg(
         short,
         long,
         required = false,
-        help = "Path to output pileup file [.bed.gz]."
+        help = "Path to output pileup file [.bed.gz]. If not provided the compression will outputted to stdout and not tabix will be created."
     )]
     pub output: Option<PathBuf>,
 
@@ -41,6 +45,27 @@ pub struct BgzipWriterArgs {
         help = "Setting flag will override the file if exists."
     )]
     pub force: bool,
+}
+
+impl BgzipWriterArgs {
+    pub fn validate_input(&self) -> anyhow::Result<InputReader> {
+        if self.stdin & self.keep {
+            bail!("Cannot set '--keep' with '--stdin'")
+        }
+
+        let reader = match (self.input.as_os_str().is_empty(), self.stdin) {
+            (true, false) => {
+                let file = File::open(&self.input)?;
+                let rdr = LineReader::new(BufReader::new(file));
+                InputReader::File(rdr)
+            },
+            (false, true) => InputReader::StdIn(LineReader::new(BufReader::new(std::io::stdin().lock()))),
+            (false, false) => bail!("Must specify either '--stdin' or '--input'"),
+            (true, true) => bail!("Cannot specify both file '{}' and '--stdin'", self.input.display()),
+        };
+
+        Ok(reader)
+    }
 }
 
 #[derive(Parser, Debug, Clone)]

@@ -10,8 +10,10 @@ use epimetheus_core::{
 use log::{debug, warn};
 use std::io::BufRead;
 
-pub struct SequentialBatchLoader<R> {
-    reader: csv::Reader<R>,
+use crate::io::readers::bed::BedReader;
+
+pub struct SequentialBatchLoader<R: BufRead> {
+    reader: crate::io::readers::bed::BedReader<R>,
     assembly: AHashMap<String, Contig>,
     batch_size: usize,
     min_valid_read_coverage: u32,
@@ -26,19 +28,13 @@ pub struct SequentialBatchLoader<R> {
 
 impl<R: BufRead> SequentialBatchLoader<R> {
     pub fn new(
-        reader: R,
+        reader: crate::io::readers::bed::BedReader<R>,
         assembly: AHashMap<String, Contig>,
         batch_size: usize,
         min_valid_read_coverage: u32,
         min_valid_cov_to_diff_fraction: f32,
         allow_mismatch: bool,
     ) -> Self {
-        let rdr = csv::ReaderBuilder::new()
-            .has_headers(false)
-            .delimiter(b'\t')
-            .flexible(false)
-            .from_reader(reader);
-
         let size = if batch_size == 0 {
             warn!("Batch size cannot be zero. Defaulting to 1.");
             1
@@ -47,7 +43,7 @@ impl<R: BufRead> SequentialBatchLoader<R> {
         };
 
         SequentialBatchLoader {
-            reader: rdr,
+            reader,
             assembly,
             batch_size: size,
             min_valid_read_coverage,
@@ -172,6 +168,7 @@ impl BatchLoader<GenomeWorkspace> for SequentialBatchLoader<std::io::BufReader<s
         min_valid_cov_to_diff_fraction: f32,
         allow_mismatch: bool,
     ) -> Self {
+        let reader = BedReader::new(reader).unwrap();
         SequentialBatchLoader::new(
             reader,
             assembly,

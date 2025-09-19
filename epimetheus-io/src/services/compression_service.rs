@@ -1,132 +1,34 @@
-use anyhow::{bail, Result};
-use log::{error, info, warn};
-use noodles_bgzf as bgzf;
-use noodles_core::Position;
-use noodles_csi::{self as csi, binning_index::index::reference_sequence::bin::Chunk};
-use noodles_tabix as tabix;
-use std::{
-    fs::File,
-    io::{BufRead, BufWriter, Write},
-    path::{Path, PathBuf},
+use anyhow::Result;
+use std::path::Path;
+
+use crate::io::{
+    readers::bed::InputReader,
+    writers::bgzip::{Writer, WriterType},
 };
 
-pub struct Writer<W: Write> {
-    writer: bgzf::io::Writer<W>,
-    indexer: Option<tabix::index::Indexer>,
-}
+pub struct CompressorService;
 
-impl Writer<File> {
-    pub fn from_path(output: &Path) -> Result<Self> {
-        let writer = File::create(output).map(bgzf::io::Writer::new)?;
-        let mut indexer = tabix::index::Indexer::default();
-        indexer.set_header(csi::binning_index::index::header::Builder::bed().build());
-
-        Ok(Self {
-            writer,
-            indexer: Some(indexer),
-        })
-    }
-}
-
-impl Writer<BufWriter<std::io::Stdout>> {
-    pub fn to_stdout() -> Result<Self> {
-        let stdout = BufWriter::new(std::io::stdout());
-        let writer = bgzf::io::Writer::new(stdout);
-
-        Ok(Self {
-            writer,
-            indexer: None,
-        })
-    }
-}
-
-pub fn zip_pileup<R: BufRead>(
-    reader: R,
-    output: Option<&Path>,
-    keep: bool,
-    force: bool,
-) -> anyhow::Result<()> {
-    // info!("Starting compression of {:#?}", input);
-    if !keep {
-        warn!("Will remove uncompressed file after compression. Set --keep to change this.");
-    }
-
-    let gz_output = match output {
-        Some(out) => {
-            if !Path::new(&out).extension().map_or(false, |ext| ext == "gz") {
-                anyhow::bail!("Output file must have .gz extension: {:#?}", out);
-            }
-            info!("Writing to file: {:#?}", &out);
-            PathBuf::from(out)
-        }
-        None => {
-            let mut new_out = PathBuf::from(input);
-            new_out.set_extension("bed.gz");
-            info!("No output set. Writing to {:?}", &new_out);
-            new_out
-        }
-    };
-
-    if Path::exists(&gz_output) & !force {
-        error!("File '{}' already exists. Please delete the file before proceeding. Set --force to override.", &gz_output.display());
-        bail!("File exists error");
-    } else if force {
-        warn!("Force set. Overwriting file: {}", &gz_output.display());
-    }
-
-    let mut writer = Writer::from_path(&gz_output)?;
-
-    // let mut indexer = tabix::index::Indexer::default();
-    // indexer.set_header(csi::binning_index::index::header::Builder::bed().build());
-
-    let mut writer = File::create(&gz_output).map(bgzf::io::Writer::new)?;
-
-    // let reader = File::open(input)?;
-    let mut buf_reader = reader;
-    let mut line = String::new();
-
-    let mut start_position = writer.virtual_position();
-
-    while buf_reader.read_line(&mut line)? > 0 {
-        let fields: Vec<&str> = line.trim().split('\t').collect();
-
-        let reference = fields[0];
-
-        let start_val = fields[1].parse::<usize>()?;
-        let start = if start_val == 0 {
-            Position::MIN
-        } else {
-            Position::try_from(start_val)?
+impl CompressorService {
+    pub fn compress_pileup(input_reader: InputReader, output: Option<&Path>) -> Result<()> {
+        let mut writer = match output {
+            Some(path) => WriterType::File(Writer::from_path(path)?),
+            None => WriterType::StdOut(Writer::to_stdout()?),
         };
 
-        let end_val = fields[2].parse::<usize>()?;
-        let end = Position::try_from(end_val)?;
+        match input_reader {
+            InputReader::File(reader) => writer.compress_from_reader(reader)?,
+            InputReader::StdIn(reader) => writer.compress_from_reader(reader)?,
+        }
 
-        writer.write_all(line.as_bytes())?;
+        if let Some(path) = output {
+            let tbx_path = format!("{}.tbi", path.display());
+            writer.write_tabix(Path::new(&tbx_path))?;
+        }
 
-        let end_position = writer.virtual_position();
-        let chunk = Chunk::new(start_position, end_position);
+        writer.finish()?;
 
-        indexer.add_record(reference, start, end, chunk)?;
-
-        start_position = end_position;
-        line.clear();
+        Ok(())
     }
-
-    writer.finish()?;
-
-    let index = indexer.build();
-
-    let tab_outfile = format!("{}.tbi", gz_output.display());
-    let mut writer = File::create(tab_outfile).map(tabix::io::Writer::new)?;
-    writer.write_index(&index)?;
-
-    if !keep {
-        info!("Removing file: {:#?}", input);
-        std::fs::remove_file(input)?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

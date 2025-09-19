@@ -1,19 +1,21 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Parser;
 use epimetheus_core::services::application::{
     methylation_pattern_service::extract_methylation_pattern,
     motif_clustering_service::motif_clustering,
 };
 
-use epimetheus_io::compression::bgzip::compressor::zip_pileup;
-use epimetheus_io::compression::bgzip::decompressor::extract_from_pileup;
-use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
-use epimetheus_io::readers::bgzf_bed::Reader as BgzipPileupReader;
-use epimetheus_io::readers::fasta::Reader as FastaReader;
+use epimetheus_io::io::readers::bgzf_bed::Reader as BgzipPileupReader;
+use epimetheus_io::io::readers::fasta::Reader as FastaReader;
+use epimetheus_io::services::compression_service::CompressorService;
+use epimetheus_io::{
+    loaders::sequential_batch_loader::SequentialBatchLoader,
+    services::decompression_service::extract_from_pileup,
+};
 
 use humantime::format_duration;
 use indicatif::HumanDuration;
-use log::info;
+use log::{info, warn};
 use std::time::Instant;
 
 mod argparser;
@@ -60,12 +62,29 @@ fn main() -> Result<()> {
         }
         argparser::Commands::Bgzip(bgzip_args) => match &bgzip_args.commands {
             BgZipCommands::Compress(compress_args) => {
-                zip_pileup(
-                    &compress_args.input,
-                    compress_args.output.as_deref(),
-                    compress_args.keep,
-                    compress_args.force,
-                )?;
+                let input_reader = compress_args.validate_input()?;
+
+                if !compress_args.keep {
+                    warn!("'--keep' not set. This will remove the input file after compression.");
+                }
+
+                if let Some(out) = &compress_args.output {
+                    if compress_args.force & out.exists() {
+                        warn!("'--force' is set. This will overwrite the original file");
+                    } else if !compress_args.force & out.exists() {
+                        bail!(
+                            "Output file '{}' already exist. Set '--force' to override.",
+                            out.display()
+                        );
+                    }
+                }
+
+                CompressorService::compress_pileup(input_reader, compress_args.output.as_deref())?;
+
+                if !compress_args.keep {
+                    info!("Removing file: {:#?}", &compress_args.input);
+                    std::fs::remove_file(&compress_args.input)?;
+                }
             }
             BgZipCommands::Decompress(decompress_args) => {
                 let contigs = decompress_args.resolve_contigs()?;
