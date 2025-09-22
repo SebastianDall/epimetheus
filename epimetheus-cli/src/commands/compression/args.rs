@@ -78,7 +78,7 @@ impl BgzipWriterArgs {
             (false, Some(output)) => {
                 match output.extension() {
                     Some(ext) if ext == "gz" => Ok(Some(output.clone())),
-                    _ => bail!("Output file should have .gz extension. Got: {}", output.display())
+                    _ => bail!("Output file should have bed.gz extension. Got: {}", output.display())
                 }
             },
             (false, None) => {
