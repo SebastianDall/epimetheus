@@ -109,7 +109,7 @@ jobs:
       - name: Build and publish
         working-directory: epimetheus-py
         env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_PASSWORD }}
         run: |
           docker run --rm \
                       -e PYPI_TOKEN="$PYPI_TOKEN" \
@@ -119,4 +119,4 @@ jobs:
                         publish  \
                           --manifest-path epimetheus-py/Cargo.toml \
                           --username __token__ \
-                          --password "$PYPI_TOKEN"
+                          --password $PYPI_TOKEN
