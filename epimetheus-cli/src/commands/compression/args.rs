@@ -18,10 +18,10 @@ pub enum BgZipCommands {
 
 #[derive(Parser, Debug, Clone)]
 pub struct BgzipWriterArgs {
-    #[arg(short, long, required = false, help = "Path to output pileup file. [.bed].")]
-    pub input: PathBuf,
+    #[arg(short, long, help = "Path to output pileup file. [.bed].")]
+    pub input: Option<PathBuf>,
 
-    #[arg(short = '-', long, required = false, default_value_t=false, help = "Read from stdin.")]
+    #[arg(long, required = false, default_value_t=false, help = "Read from stdin.")]
     pub stdin: bool,
 
     #[arg(
@@ -50,23 +50,28 @@ pub struct BgzipWriterArgs {
 impl BgzipWriterArgs {
     pub fn validate_input(&self) -> anyhow::Result<InputReader> {
         if self.stdin & self.keep {
-            bail!("Cannot set '--keep' with '--stdin'")
+            bail!("Cannot set '--keep' with '--stdin'. No file will be removed.")
         }
 
-        let reader = match (self.input.as_os_str().is_empty(), self.stdin) {
+        let reader = match (self.input.is_some(), self.stdin) {
             (true, false) => {
-                let file = File::open(&self.input)?;
+                let file = File::open(&self.input.as_ref().unwrap())?;
                 let rdr = LineReader::new(BufReader::new(file));
                 InputReader::File(rdr)
             },
             (false, true) => InputReader::StdIn(LineReader::new(BufReader::new(std::io::stdin().lock()))),
             (false, false) => bail!("Must specify either '--stdin' or '--input'"),
-            (true, true) => bail!("Cannot specify both file '{}' and '--stdin'", self.input.display()),
+            (true, true) => bail!("Cannot specify both file '{}' and '--stdin'", self.input.as_ref().unwrap().display()),
         };
 
         Ok(reader)
     }
+
+    pub fn should_remove_input_file(&self) -> bool {
+        !self.keep & !self.stdin
+    }
 }
+
 
 #[derive(Parser, Debug, Clone)]
 pub struct BgzipExtractArgs {

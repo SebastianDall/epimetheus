@@ -64,7 +64,7 @@ fn main() -> Result<()> {
             BgZipCommands::Compress(compress_args) => {
                 let input_reader = compress_args.validate_input()?;
 
-                if !compress_args.keep {
+                if compress_args.should_remove_input_file() {
                     warn!("'--keep' not set. This will remove the input file after compression.");
                 }
 
@@ -81,9 +81,9 @@ fn main() -> Result<()> {
 
                 CompressorService::compress_pileup(input_reader, compress_args.output.as_deref())?;
 
-                if !compress_args.keep {
+                if compress_args.should_remove_input_file() {
                     info!("Removing file: {:#?}", &compress_args.input);
-                    std::fs::remove_file(&compress_args.input)?;
+                    std::fs::remove_file(&compress_args.input.as_ref().unwrap())?;
                 }
             }
             BgZipCommands::Decompress(decompress_args) => {
