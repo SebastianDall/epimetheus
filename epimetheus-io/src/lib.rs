@@ -1,3 +1,3 @@
-pub mod compression;
+pub mod io;
 pub mod loaders;
-pub mod readers;
+pub mod services;

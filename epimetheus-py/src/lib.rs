@@ -12,18 +12,21 @@
 use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
-use epimetheus_io::compression::bgzip::compressor::zip_pileup;
+use epimetheus_io::services::compression_service::CompressorService;
 use pyo3::prelude::*;
 use pyo3::types;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 
 use epimetheus_core::services::application::{
     methylation_pattern_service::extract_methylation_pattern,
     motif_clustering_service::motif_clustering,
 };
+use epimetheus_io::io::readers::bed;
+use epimetheus_io::io::readers::bgzf_bed::Reader as GzPileupReader;
+use epimetheus_io::io::readers::fasta::Reader as FastaReader;
 use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
-use epimetheus_io::readers::bgzf_bed::Reader as GzPileupReader;
-use epimetheus_io::readers::fasta::Reader as FastaReader;
 
 /// Extract methylation patterns for specified DNA motifs from pileup data.
 ///
@@ -140,8 +143,9 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 ///     PyRuntimeError: If querying fails due to data processing issues
 #[pyfunction]
 fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyObject> {
-    let mut reader = epimetheus_io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
-        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+    let mut reader =
+        epimetheus_io::io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
+            .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
     let records = query_pileup(&mut reader, &contigs)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -195,11 +199,54 @@ fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyO
 ///     PyRuntimeError: If compression fails due to IO errors or file access issues
 #[pyfunction]
 fn bgzf_pileup(input: &str, output: Option<&str>, keep: bool, force: bool) -> PyResult<()> {
-    let output_path = output.map(Path::new);
+    let input_path = Path::new(input);
+    let input_file = File::open(input_path)
+        .map_err(|e| pyo3::exceptions::PyFileNotFoundError::new_err(e.to_string()))?;
 
-    zip_pileup(Path::new(input), output_path, keep, force)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    let output_str = match output {
+        Some(out) => out,
+        None => &format!("{}.gz", input.to_string()),
+    };
+    let output_path = Path::new(output_str);
 
+    if !keep {
+        Python::with_gil(|py| {
+            let warnings = py.import("warnings")?;
+            let message = format!(
+                "File removal is enabled, will remove '{}' after compression. Set 'keep' to remove this behavior.",
+                &input_path.display()
+            );
+
+            warnings.call_method1("warn", (message,))?;
+            Ok::<(), PyErr>(())
+        })?;
+    }
+    if !force & output_path.exists() {
+        let message = format!(
+            "File '{}' already exists. Set '--force' to override.",
+            &output_path.display()
+        );
+
+        // warnings.call_method1("warn", (message,))?;
+        return Err(pyo3::exceptions::PyFileExistsError::new_err(message));
+    }
+
+    let reader = bed::InputReader::File(bed::LineReader::new(BufReader::new(input_file)));
+
+    CompressorService::compress_pileup(reader, Some(output_path))
+        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+    if !keep {
+        Python::with_gil(|py| {
+            let warnings = py.import("warnings")?;
+            let message = format!("Removing original file: {}.", &input_path.display());
+
+            warnings.call_method1("warn", (message,))?;
+
+            std::fs::remove_file(&input_path)?;
+            Ok::<(), PyErr>(())
+        })?;
+    }
     Ok(())
 }
 

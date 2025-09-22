@@ -1,4 +1,9 @@
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 use tempfile::TempDir;
 
 #[test]
@@ -12,7 +17,7 @@ fn test_methylation_pattern_median() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_median.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -67,7 +72,7 @@ fn test_methylation_pattern_weighted_mean() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_wm.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -124,7 +129,7 @@ fn test_methylation_pattern_raw() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_raw.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -181,7 +186,7 @@ fn test_methylation_pattern_median_gz() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_median_gz.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -236,7 +241,7 @@ fn test_methylation_pattern_weighted_mean_gz() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_wm_gz.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -293,7 +298,7 @@ fn test_methylation_pattern_raw_gz() {
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
-        .join("test_out.tsv");
+        .join("test_out_raw_gz.tsv");
 
     let status = Command::new("cargo")
         .args(&[
@@ -386,6 +391,63 @@ fn test_compress_pileup() {
 }
 
 #[test]
+fn test_compress_pileup_from_stdin() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let data_dir = PathBuf::from(manifest_dir).join("tests/data");
+
+    let pileup = data_dir.join("geobacillus-plasmids.pileup.bed");
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let compressed_pileup = temp_dir
+        .path()
+        .join("geobacillus-plasmids.pileup.fromstdin.bed.gz");
+
+    let file_content = std::fs::read(&pileup).expect("Failed to read test file");
+
+    let mut child = Command::new("cargo")
+        .args(&[
+            "run",
+            "--quiet",
+            "--",
+            "bgzip",
+            "compress",
+            "--stdin",
+            "-o",
+            compressed_pileup.to_str().unwrap(),
+        ])
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute cargo run");
+
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&file_content)
+        .expect("Failed to write to stidin");
+
+    let status = child.wait().expect("Failed to wait for command");
+    assert!(
+        status.success(),
+        "Compression failed with status: {:?}",
+        status
+    );
+
+    assert!(
+        compressed_pileup.exists(),
+        "Compressed file was not created: {:?}",
+        compressed_pileup
+    );
+
+    assert!(
+        temp_dir
+            .path()
+            .join("geobacillus-plasmids.pileup.fromstdin.bed.gz.tbi")
+            .exists(),
+        "Index file was not created"
+    );
+}
+
+#[test]
 fn test_verify_expected_outputs_from_raw() {
     use std::collections::HashMap;
 
@@ -399,14 +461,17 @@ fn test_verify_expected_outputs_from_raw() {
     // Read raw data
     let raw_data = fs::read_to_string(&expected_raw).expect("Could not read raw expected file");
     let raw_lines: Vec<&str> = raw_data.trim().lines().collect();
-    
+
     // Parse header
     let header = raw_lines[0];
-    assert_eq!(header, "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov");
+    assert_eq!(
+        header,
+        "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov"
+    );
 
     // Group data by (contig, motif, mod_type, mod_position)
     let mut grouped: HashMap<(String, String, String, u32), Vec<(u64, u64)>> = HashMap::new();
-    
+
     for line in &raw_lines[1..] {
         let parts: Vec<&str> = line.split('\t').collect();
         let contig = parts[0].to_string();
@@ -417,44 +482,57 @@ fn test_verify_expected_outputs_from_raw() {
         let n_valid_cov: u64 = parts[7].parse().expect("Invalid n_valid_cov");
 
         let key = (contig, motif, mod_type, mod_position);
-        grouped.entry(key).or_insert_with(Vec::new).push((n_modified, n_valid_cov));
+        grouped
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push((n_modified, n_valid_cov));
     }
 
     // Calculate weighted means and medians
-    let mut calculated_weighted_means: HashMap<(String, String, String, u32), (f64, f64, u64)> = HashMap::new();
-    let mut calculated_medians: HashMap<(String, String, String, u32), (f64, f64, u64)> = HashMap::new();
-    
+    let mut calculated_weighted_means: HashMap<(String, String, String, u32), (f64, f64, u64)> =
+        HashMap::new();
+    let mut calculated_medians: HashMap<(String, String, String, u32), (f64, f64, u64)> =
+        HashMap::new();
+
     for (key, values) in &grouped {
         let total_modified: u64 = values.iter().map(|(m, _)| m).sum();
         let total_coverage: u64 = values.iter().map(|(_, c)| c).sum();
         let motif_count = values.len() as u64;
-        
+
         // Weighted mean calculation
         let weighted_mean_methylation = total_modified as f64 / total_coverage as f64;
         let mean_read_cov = total_coverage as f64 / motif_count as f64;
-        
-        calculated_weighted_means.insert(key.clone(), (weighted_mean_methylation, mean_read_cov, motif_count));
-        
+
+        calculated_weighted_means.insert(
+            key.clone(),
+            (weighted_mean_methylation, mean_read_cov, motif_count),
+        );
+
         // Median calculation
-        let mut methylation_ratios: Vec<f64> = values.iter()
+        let mut methylation_ratios: Vec<f64> = values
+            .iter()
             .map(|(modified, coverage)| *modified as f64 / *coverage as f64)
             .collect();
         methylation_ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
+
         let median_methylation = if methylation_ratios.len() % 2 == 0 {
             let mid = methylation_ratios.len() / 2;
             (methylation_ratios[mid - 1] + methylation_ratios[mid]) / 2.0
         } else {
             methylation_ratios[methylation_ratios.len() / 2]
         };
-        
-        calculated_medians.insert(key.clone(), (median_methylation, mean_read_cov, motif_count));
+
+        calculated_medians.insert(
+            key.clone(),
+            (median_methylation, mean_read_cov, motif_count),
+        );
     }
 
     // Read and verify weighted mean expected output
-    let weighted_mean_data = fs::read_to_string(&expected_weighted_mean).expect("Could not read weighted mean expected file");
+    let weighted_mean_data = fs::read_to_string(&expected_weighted_mean)
+        .expect("Could not read weighted mean expected file");
     let weighted_mean_lines: Vec<&str> = weighted_mean_data.trim().lines().collect();
-    
+
     for line in &weighted_mean_lines[1..] {
         let parts: Vec<&str> = line.split('\t').collect();
         let contig = parts[0].to_string();
@@ -466,21 +544,28 @@ fn test_verify_expected_outputs_from_raw() {
         let expected_count: u64 = parts[6].parse().expect("Invalid n_motif_obs");
 
         let key = (contig, motif, mod_type, mod_position);
-        let (calculated_methylation, calculated_mean_cov, calculated_count) = calculated_weighted_means.get(&key)
-            .expect(&format!("Key {:?} not found in calculated weighted means", key));
-        
+        let (calculated_methylation, calculated_mean_cov, calculated_count) =
+            calculated_weighted_means.get(&key).expect(&format!(
+                "Key {:?} not found in calculated weighted means",
+                key
+            ));
+
         assert!(
             (calculated_methylation - expected_methylation).abs() < 1e-10,
             "Weighted mean methylation mismatch for {:?}: calculated={}, expected={}",
-            key, calculated_methylation, expected_methylation
+            key,
+            calculated_methylation,
+            expected_methylation
         );
-        
+
         assert!(
             (calculated_mean_cov - expected_mean_cov).abs() < 1e-10,
             "Mean coverage mismatch for {:?}: calculated={}, expected={}",
-            key, calculated_mean_cov, expected_mean_cov
+            key,
+            calculated_mean_cov,
+            expected_mean_cov
         );
-        
+
         assert_eq!(
             *calculated_count, expected_count,
             "Motif count mismatch for {:?}: calculated={}, expected={}",
@@ -489,9 +574,10 @@ fn test_verify_expected_outputs_from_raw() {
     }
 
     // Read and verify median expected output
-    let median_data = fs::read_to_string(&expected_median).expect("Could not read median expected file");
+    let median_data =
+        fs::read_to_string(&expected_median).expect("Could not read median expected file");
     let median_lines: Vec<&str> = median_data.trim().lines().collect();
-    
+
     for line in &median_lines[1..] {
         let parts: Vec<&str> = line.split('\t').collect();
         let contig = parts[0].to_string();
@@ -503,21 +589,26 @@ fn test_verify_expected_outputs_from_raw() {
         let expected_count: u64 = parts[6].parse().expect("Invalid n_motif_obs");
 
         let key = (contig, motif, mod_type, mod_position);
-        let (calculated_methylation, calculated_mean_cov, calculated_count) = calculated_medians.get(&key)
+        let (calculated_methylation, calculated_mean_cov, calculated_count) = calculated_medians
+            .get(&key)
             .expect(&format!("Key {:?} not found in calculated medians", key));
-        
+
         assert!(
             (calculated_methylation - expected_methylation).abs() < 1e-10,
             "Median methylation mismatch for {:?}: calculated={}, expected={}",
-            key, calculated_methylation, expected_methylation
+            key,
+            calculated_methylation,
+            expected_methylation
         );
-        
+
         assert!(
             (calculated_mean_cov - expected_mean_cov).abs() < 1e-10,
             "Mean coverage mismatch for {:?}: calculated={}, expected={}",
-            key, calculated_mean_cov, expected_mean_cov
+            key,
+            calculated_mean_cov,
+            expected_mean_cov
         );
-        
+
         assert_eq!(
             *calculated_count, expected_count,
             "Motif count mismatch for {:?}: calculated={}, expected={}",
