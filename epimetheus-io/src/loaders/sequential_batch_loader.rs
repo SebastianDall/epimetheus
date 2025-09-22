@@ -8,12 +8,15 @@ use epimetheus_core::{
     services::{domain::pileup_processor::parse_to_methylation_record, traits::BatchLoader},
 };
 use log::{debug, warn};
-use std::io::BufRead;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+};
 
 use crate::io::readers::bed::BedReader;
 
 pub struct SequentialBatchLoader<R: BufRead> {
-    reader: crate::io::readers::bed::BedReader<R>,
+    reader: BedReader<R>,
     assembly: AHashMap<String, Contig>,
     batch_size: usize,
     min_valid_read_coverage: u32,
@@ -28,7 +31,7 @@ pub struct SequentialBatchLoader<R: BufRead> {
 
 impl<R: BufRead> SequentialBatchLoader<R> {
     pub fn new(
-        reader: crate::io::readers::bed::BedReader<R>,
+        reader: BedReader<R>,
         assembly: AHashMap<String, Contig>,
         batch_size: usize,
         min_valid_read_coverage: u32,
@@ -54,6 +57,31 @@ impl<R: BufRead> SequentialBatchLoader<R> {
             pending_record: None,
             contigs_loaded_in_batch: 0,
         }
+    }
+}
+
+impl BatchLoader<GenomeWorkspace> for SequentialBatchLoader<BufReader<File>> {
+    fn next_batch(&mut self) -> Option<anyhow::Result<GenomeWorkspace>> {
+        self.next()
+    }
+
+    fn new(
+        reader: BufReader<File>,
+        assembly: AHashMap<String, Contig>,
+        batch_size: usize,
+        min_valid_read_coverage: u32,
+        min_valid_cov_to_diff_fraction: f32,
+        allow_mismatch: bool,
+    ) -> Self {
+        let reader = BedReader::new(reader).unwrap();
+        Self::new(
+            reader,
+            assembly,
+            batch_size,
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+            allow_mismatch,
+        )
     }
 }
 
@@ -155,31 +183,6 @@ impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
     }
 }
 
-impl BatchLoader<GenomeWorkspace> for SequentialBatchLoader<std::io::BufReader<std::fs::File>> {
-    fn next_batch(&mut self) -> Option<anyhow::Result<GenomeWorkspace>> {
-        self.next()
-    }
-
-    fn new(
-        reader: std::io::BufReader<std::fs::File>,
-        assembly: AHashMap<String, Contig>,
-        batch_size: usize,
-        min_valid_read_coverage: u32,
-        min_valid_cov_to_diff_fraction: f32,
-        allow_mismatch: bool,
-    ) -> Self {
-        let reader = BedReader::new(reader).unwrap();
-        SequentialBatchLoader::new(
-            reader,
-            assembly,
-            batch_size,
-            min_valid_read_coverage,
-            min_valid_cov_to_diff_fraction,
-            allow_mismatch,
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -221,7 +224,7 @@ mod tests {
             Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BufReader::new(file);
+        let reader = BedReader::new(BufReader::new(file))?;
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
@@ -282,7 +285,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BufReader::new(file);
+        let reader = BedReader::new(BufReader::new(file))?;
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
@@ -339,7 +342,7 @@ mod tests {
 
         let assembly = AHashMap::new();
         let file = File::open(pileup_file).unwrap();
-        let reader = BufReader::new(file);
+        let reader = BedReader::new(BufReader::new(file))?;
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
@@ -384,7 +387,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BufReader::new(file);
+        let reader = BedReader::new(BufReader::new(file))?;
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
@@ -436,7 +439,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BufReader::new(file);
+        let reader = BedReader::new(BufReader::new(file))?;
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 3, 1, 0.8, true);
 
