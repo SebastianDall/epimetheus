@@ -25,9 +25,6 @@ pub fn extract_from_pileup(
         return Ok(());
     }
 
-    info!("Writing {} contigs.", &contigs.len());
-    let records = query_pileup(&mut reader, &contigs)?;
-
     let mut writer: Box<dyn Write> = match output {
         Some(out) => {
             let file = File::create(out)?;
@@ -36,8 +33,12 @@ pub fn extract_from_pileup(
         None => Box::new(BufWriter::new(std::io::stdout())),
     };
 
-    for r in records {
-        writeln!(writer, "{}", r)?;
+    info!("Writing {} contigs.", &contigs.len());
+    for contig in contigs {
+        let records = query_pileup(&mut reader, &[contig])?;
+        for r in records {
+            writeln!(writer, "{}", r)?;
+        }
     }
 
     Ok(())

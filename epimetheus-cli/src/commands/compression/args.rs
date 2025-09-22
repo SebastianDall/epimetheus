@@ -75,7 +75,12 @@ impl BgzipWriterArgs {
 
         let output_path = match (self.stdout, &self.output) {
             (true, None) => Ok(None),
-            (false, Some(output)) => Ok(Some(output.clone())),
+            (false, Some(output)) => {
+                match output.extension() {
+                    Some(ext) if ext == "gz" => Ok(Some(output.clone())),
+                    _ => bail!("Output file should have .gz extension. Got: {}", output.display())
+                }
+            },
             (false, None) => {
                 match &self.input {
                     Some(input) => Ok(Some(PathBuf::from(format!("{}.gz", input.display())))),
