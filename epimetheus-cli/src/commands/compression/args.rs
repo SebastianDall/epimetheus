@@ -32,6 +32,9 @@ pub struct BgzipWriterArgs {
     )]
     pub output: Option<PathBuf>,
 
+    #[arg(long, required = false, default_value_t=false, help = "Output to stdout")]
+    pub stdout: bool,
+
     #[arg(
         long,
         default_value_t = false,
@@ -59,12 +62,31 @@ impl BgzipWriterArgs {
                 let rdr = LineReader::new(BufReader::new(file));
                 InputReader::File(rdr)
             },
-            (false, true) => InputReader::StdIn(LineReader::new(BufReader::new(std::io::stdin().lock()))),
+            (false, true) => InputReader::StdIn(LineReader::new(BufReader::new(std::io::stdin()))),
             (false, false) => bail!("Must specify either '--stdin' or '--input'"),
             (true, true) => bail!("Cannot specify both file '{}' and '--stdin'", self.input.as_ref().unwrap().display()),
         };
 
         Ok(reader)
+    }
+
+    pub fn set_output(&self) -> anyhow::Result<Option<PathBuf>> {
+        self.validate_input()?;
+
+        let output_path = match (self.stdout, &self.output) {
+            (true, None) => Ok(None),
+            (false, Some(output)) => Ok(Some(output.clone())),
+            (false, None) => {
+                match &self.input {
+                    Some(input) => Ok(Some(PathBuf::from(format!("{}.gz", input.display())))),
+                    None => bail!("Cannot auto-generate output filename from input, when using stdin."),
+                }
+            },
+            (true, Some(_)) => bail!("Cannot speficy both output and stdout."),
+        };
+
+        output_path
+
     }
 
     pub fn should_remove_input_file(&self) -> bool {

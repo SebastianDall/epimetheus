@@ -79,10 +79,15 @@ fn main() -> Result<()> {
                     }
                 }
 
-                CompressorService::compress_pileup(input_reader, compress_args.output.as_deref())?;
+                let output = compress_args.set_output()?;
+
+                CompressorService::compress_pileup(input_reader, output.as_deref())?;
 
                 if compress_args.should_remove_input_file() {
-                    info!("Removing file: {:#?}", &compress_args.input);
+                    info!(
+                        "Removing file: {}",
+                        &compress_args.input.as_ref().unwrap().display()
+                    );
                     std::fs::remove_file(&compress_args.input.as_ref().unwrap())?;
                 }
             }

@@ -1,4 +1,9 @@
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 use tempfile::TempDir;
 
 #[test]
@@ -380,6 +385,63 @@ fn test_compress_pileup() {
         temp_dir
             .path()
             .join("geobacillus-plasmids.pileup.bed.gz.tbi")
+            .exists(),
+        "Index file was not created"
+    );
+}
+
+#[test]
+fn test_compress_pileup_from_stdin() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let data_dir = PathBuf::from(manifest_dir).join("tests/data");
+
+    let pileup = data_dir.join("geobacillus-plasmids.pileup.bed");
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let compressed_pileup = temp_dir
+        .path()
+        .join("geobacillus-plasmids.pileup.fromstdin.bed.gz");
+
+    let file_content = std::fs::read(&pileup).expect("Failed to read test file");
+
+    let mut child = Command::new("cargo")
+        .args(&[
+            "run",
+            "--quiet",
+            "--",
+            "bgzip",
+            "compress",
+            "--stdin",
+            "-o",
+            compressed_pileup.to_str().unwrap(),
+        ])
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute cargo run");
+
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&file_content)
+        .expect("Failed to write to stidin");
+
+    let status = child.wait().expect("Failed to wait for command");
+    assert!(
+        status.success(),
+        "Compression failed with status: {:?}",
+        status
+    );
+
+    assert!(
+        compressed_pileup.exists(),
+        "Compressed file was not created: {:?}",
+        compressed_pileup
+    );
+
+    assert!(
+        temp_dir
+            .path()
+            .join("geobacillus-plasmids.pileup.fromstdin.bed.gz.tbi")
             .exists(),
         "Index file was not created"
     );

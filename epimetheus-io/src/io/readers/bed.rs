@@ -8,7 +8,7 @@ use std::{
 
 pub enum InputReader {
     File(LineReader<BufReader<File>>),
-    StdIn(LineReader<BufReader<std::io::StdinLock<'static>>>),
+    StdIn(LineReader<BufReader<std::io::Stdin>>),
 }
 
 pub struct BedReader<R: BufRead> {
