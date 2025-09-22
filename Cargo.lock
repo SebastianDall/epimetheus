@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus-io"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "ahash",
  "anyhow",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "epimetheus-py"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "epimetheus-core",
  "epimetheus-io",
