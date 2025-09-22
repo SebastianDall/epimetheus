@@ -1,7 +1,11 @@
 [package]
 name = "epimetheus-core"
-edition = "2024"
-version.workspace = true
+version = "0.7.1"
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 clap = { workspace = true }
