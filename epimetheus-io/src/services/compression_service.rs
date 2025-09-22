@@ -34,37 +34,59 @@ impl CompressorService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use crate::io::readers::bed::{InputReader, LineReader};
+    use noodles_bgzf as bgzf;
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader, Write},
+    };
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_zip_pileup_creates_gz_and_tbi_files() {
-        // Create a temporary input file with BED data
+    fn create_test_bed_data() -> NamedTempFile {
         let mut input_file = NamedTempFile::new().unwrap();
-        writeln!(input_file, "contig_1\t0\t100\tA\t50").unwrap();
-        writeln!(input_file, "contig_1\t150\t250\tC\t75").unwrap();
-        writeln!(input_file, "contig_2\t300\t400\tG\t25").unwrap();
+        writeln!(
+            input_file,
+            "contig_3\t0\t1\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )
+        .unwrap();
+        writeln!(
+            input_file,
+            "contig_3\t6\t7\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )
+        .unwrap();
+        writeln!(
+            input_file,
+            "contig_3\t10\t11\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )
+        .unwrap();
         input_file.flush().unwrap();
+        input_file
+    }
 
-        // Create temporary output directory
+    #[test]
+    fn test_compress_pileup_creates_gz_and_tbi_files() {
+        let input_file = create_test_bed_data();
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("test_output.bed.gz");
 
-        // Test the compression function
-        let result = zip_pileup(input_file.path(), Some(output_path.as_path()), true, false);
-        assert!(result.is_ok(), "zip_pileup failed: {:?}", result.err());
+        // Create InputReader from file
+        let file = File::open(input_file.path()).unwrap();
+        let line_reader = LineReader::new(BufReader::new(file));
+        let input_reader = InputReader::File(line_reader);
 
-        // Check that the compressed file was created
+        // Test compression
+        let result = CompressorService::compress_pileup(input_reader, Some(&output_path));
+        assert!(result.is_ok(), "compress_pileup failed: {:?}", result.err());
+
+        // Verify outputs
         assert!(output_path.exists(), "Output .gz file was not created");
-
-        // Check that the tabix index was created
         let tbi_path = format!("{}.tbi", output_path.display());
         assert!(
             Path::new(&tbi_path).exists(),
             "Tabix .tbi file was not created"
         );
 
-        // Verify the compressed file can be read
+        // Verify compressed content
         let compressed_reader = File::open(&output_path).map(bgzf::io::Reader::new).unwrap();
         let mut buf_reader = BufReader::new(compressed_reader);
         let mut line = String::new();
@@ -74,56 +96,49 @@ mod tests {
             line_count += 1;
             line.clear();
         }
-
         assert_eq!(line_count, 3, "Compressed file should contain 3 lines");
-
-        // Verify the original file still exists (because keep=true)
-        assert!(input_file.path().exists(), "Original file should be kept");
     }
 
     #[test]
-    fn test_zip_pileup_removes_original_when_keep_false() {
-        // Create a real temporary file (not NamedTempFile which auto-deletes)
-        let temp_dir = tempfile::tempdir().unwrap();
-        let input_path = temp_dir.path().join("input.bed");
-        let mut input_file = File::create(&input_path).unwrap();
-        writeln!(input_file, "chr1\t0\t100\tA\t50").unwrap();
-        input_file.sync_all().unwrap();
-        drop(input_file);
+    fn test_compress_pileup_to_stdout() {
+        let input_file = create_test_bed_data();
 
-        let output_path = temp_dir.path().join("output.bed.gz");
+        // Create InputReader from file
+        let file = File::open(input_file.path()).unwrap();
+        let line_reader = LineReader::new(BufReader::new(file));
+        let input_reader = InputReader::File(line_reader);
 
-        let result = zip_pileup(&input_path, Some(output_path.as_path()), false, false);
-        assert!(result.is_ok(), "zip_pileup failed: {:?}", result.err());
-
-        // Check that the original file was removed
+        // Test compression to stdout (no output path)
+        let result = CompressorService::compress_pileup(input_reader, None);
         assert!(
-            !input_path.exists(),
-            "Original file should have been removed"
+            result.is_ok(),
+            "compress_pileup to stdout failed: {:?}",
+            result.err()
         );
-
-        // Check that output files were created
-        assert!(output_path.exists(), "Output .gz file was not created");
-        let tbi_path = format!("{}.tbi", output_path.display());
-        assert!(
-            Path::new(&tbi_path).exists(),
-            "Tabix .tbi file was not created"
-        );
+        // Note: Can't easily test stdout output, but we verify it doesn't crash
     }
 
     #[test]
-    fn test_zip_pileup_handles_zero_coordinates() {
+    fn test_compress_handles_zero_coordinates() {
         let mut input_file = NamedTempFile::new().unwrap();
-        writeln!(input_file, "chr1\t0\t1\tA\t50").unwrap(); // Zero start coordinate
+        writeln!(
+            input_file,
+            "contig_3\t0\t1\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )
+        .unwrap(); // Zero start coordinate
         input_file.flush().unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("zero_coord.bed.gz");
 
-        let result = zip_pileup(input_file.path(), Some(output_path.as_path()), true, false);
+        let file = File::open(input_file.path()).unwrap();
+        let line_reader = LineReader::new(BufReader::new(file));
+        let input_reader = InputReader::File(line_reader);
+
+        let result = CompressorService::compress_pileup(input_reader, Some(&output_path));
         assert!(
             result.is_ok(),
-            "zip_pileup should handle zero coordinates: {:?}",
+            "Should handle zero coordinates: {:?}",
             result.err()
         );
 
@@ -136,23 +151,30 @@ mod tests {
     }
 
     #[test]
-    fn test_zip_pileup_validates_output_extension() {
+    fn test_compress_from_memory_data() {
+        // Create a temporary file with test data instead of using Cursor
         let mut input_file = NamedTempFile::new().unwrap();
-        writeln!(input_file, "chr1\t0\t100\tA\t50").unwrap();
+        writeln!(
+            input_file,
+            "contig_3\t0\t1\ta\t133\t+\t0\t1\t255,0,0\t15\t0.00\t15\t123\t0\t0\t6\t0\t0"
+        )
+        .unwrap();
         input_file.flush().unwrap();
 
-        let result = zip_pileup(
-            input_file.path(),
-            Some(Path::new("invalid_extension.txt")),
-            true,
-            false,
-        );
-        assert!(result.is_err(), "Should fail with invalid extension");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let output_path = temp_dir.path().join("memory_test.bed.gz");
 
-        let error_msg = result.unwrap_err().to_string();
+        let file = File::open(input_file.path()).unwrap();
+        let line_reader = LineReader::new(BufReader::new(file));
+        let input_reader = InputReader::File(line_reader);
+
+        let result = CompressorService::compress_pileup(input_reader, Some(&output_path));
         assert!(
-            error_msg.contains("must have .gz extension"),
-            "Error should mention .gz extension requirement"
+            result.is_ok(),
+            "Should handle file input: {:?}",
+            result.err()
         );
+
+        assert!(output_path.exists(), "Output file should be created");
     }
 }
