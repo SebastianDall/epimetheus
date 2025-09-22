@@ -116,7 +116,7 @@ jobs:
                       -v "${{ github.workspace }}":/io \
                       -w /io \
                       ghcr.io/pyo3/maturin:latest \
-                        bash -c "apt-get update && apt-get install -y pkg-config libssl-dev && maturin publish \
+                        publish  \
                           --manifest-path epimetheus-py/Cargo.toml \
                           --username __token__ \
-                          --password \"$PYPI_TOKEN\""
+                          --password "$PYPI_TOKEN"
