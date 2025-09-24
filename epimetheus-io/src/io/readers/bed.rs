@@ -9,6 +9,7 @@ use std::{
 pub enum InputReader {
     File(LineReader<BufReader<File>>),
     StdIn(LineReader<BufReader<std::io::Stdin>>),
+    Lines(std::vec::IntoIter<String>),
 }
 
 pub struct BedReader<R: BufRead> {

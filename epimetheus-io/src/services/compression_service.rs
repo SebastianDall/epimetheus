@@ -18,6 +18,7 @@ impl CompressorService {
         match input_reader {
             InputReader::File(reader) => writer.compress_from_reader(reader)?,
             InputReader::StdIn(reader) => writer.compress_from_reader(reader)?,
+            InputReader::Lines(lines) => writer.compress_from_lines(lines)?,
         }
 
         if let Some(path) = output {

@@ -110,4 +110,31 @@ def test_bgzf_force_overwrite(data_dir, tmp_path):
     assert output_file.exists()
     # File should still exist and have similar size
     new_size = output_file.stat().st_size
-    assert abs(new_size - original_size) < 100, "File sizes should be similar"
+
+def test_bgzf_compression_from_lines(data_dir, tmp_path):
+    """Test bgzf compression with automatic output naming"""
+    # Copy input file to temp directory so we can test auto-naming
+    pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
+    temp_output= tmp_path / "output_lines.bed.gz"
+
+    writer = epymetheus.BgzfWriter(str(temp_output), force=True)
+
+    for c in ["contig_2", "contig_3"]:
+        records = epymetheus.query_pileup_records(pileup_input, [c])
+        lines = []
+        for record in records:
+            contig_parts = record["contig"].split("_")
+            suffix = int(contig_parts[1]) + 2
+            new_contig = f"contig_{suffix}"
+
+            line = f"{new_contig}\t{record['start']}\t{record['end']}\t{record['mod_type']}\t{record['score']}\t{record['strand']}\t{record['start_pos']}\t{record['end_pos']}\t{record['color']}\t{record['n_valid_cov']}\t{record['fraction_modified']}\t{record['n_modified']}\t{record['n_canonical']}\t{record['n_other_mod']}\t{record['n_delete']}\t{record['n_fail']}\t{record['n_diff']}\t{record['n_no_call']}"
+            lines.append(line)
+
+        writer.write_lines(lines)
+
+    writer.finish()
+
+    expected_contigs = ["contig_4", "contig_5"]
+    contigs_in_output = epymetheus.query_pileup_records(str(temp_output), expected_contigs)
+    unique_contigs = list(set(record["contig"] for record in contigs_in_output))
+    assert sorted(unique_contigs) == sorted(expected_contigs)

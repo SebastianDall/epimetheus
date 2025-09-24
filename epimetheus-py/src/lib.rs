@@ -12,12 +12,15 @@
 use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::services::domain::parallel_processer::query_pileup;
 use epimetheus_core::services::traits::PileupReader;
+use epimetheus_io::io::writers::bgzip::Writer;
+use epimetheus_io::io::writers::bgzip::WriterType;
 use epimetheus_io::services::compression_service::CompressorService;
 use pyo3::prelude::*;
 use pyo3::types;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::path::PathBuf;
 
 use epimetheus_core::services::application::{
     methylation_pattern_service::extract_methylation_pattern,
@@ -252,12 +255,115 @@ fn bgzf_pileup(input: &str, output: Option<&str>, keep: bool, force: bool) -> Py
     Ok(())
 }
 
+#[pyclass]
+pub struct BgzfWriter {
+    writer: Option<WriterType>,
+    output_path: PathBuf,
+}
+
+#[pymethods]
+impl BgzfWriter {
+    #[new]
+    fn new(output_path: &str, force: bool) -> PyResult<Self> {
+        let path = PathBuf::from(output_path);
+
+        if !force && path.exists() {
+            return Err(pyo3::exceptions::PyFileExistsError::new_err(format!(
+                "File: '{}' already exists",
+                output_path
+            )));
+        }
+
+        let writer = WriterType::File(
+            Writer::from_path(&path)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?,
+        );
+
+        Ok(Self {
+            writer: Some(writer),
+            output_path: path,
+        })
+    }
+
+    fn write_lines(&mut self, lines: Vec<String>) -> PyResult<()> {
+        if let Some(ref mut writer) = self.writer {
+            writer
+                .compress_from_lines(lines.into_iter())
+                .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn finish(&mut self) -> PyResult<()> {
+        if let Some(mut writer) = self.writer.take() {
+            let tbx_path = format!("{}.tbi", self.output_path.display());
+            writer
+                .write_tabix(Path::new(&tbx_path))
+                .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+            writer
+                .finish()
+                .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+// /// Compress a pileup file using BGZF compression from lines useful for streaming.
+// ///
+// /// This function compresses a pileup file using the BGZF (Blocked GZip Format)
+// /// compression algorithm, which allows for efficient random access.
+// ///
+// /// Args:
+// ///     input ([String]): Lines to compress.
+// ///     output (str): Path for the compressed output file. Must end with [.bed.gz]
+// ///
+// ///     force (bool): Whether to overwrite existing output file
+// ///
+// /// Returns:
+// ///     None
+// ///
+// /// Raises:
+// ///     PyRuntimeError: If compression fails due to IO errors or file access issues
+// ///     PyRuntimeError: If wrong filename provided
+// ///     PyFileExistsError: If filename provided already exists and '--force' is false
+// #[pyfunction]
+// fn bgzf_pileup_from_lines(input: Vec<String>, output: &str, force: bool) -> PyResult<()> {
+//     if !output.ends_with(".bed.gz") {
+//         return Err(pyo3::exceptions::PyRuntimeError::new_err(
+//             "Output should have the extension .bed.gz",
+//         ));
+//     }
+
+//     let output_path = Path::new(output);
+
+//     if !force & output_path.exists() {
+//         let message = format!(
+//             "File '{}' already exists. Set '--force' to override.",
+//             &output_path.display()
+//         );
+
+//         // warnings.call_method1("warn", (message,))?;
+//         return Err(pyo3::exceptions::PyFileExistsError::new_err(message));
+//     }
+
+//     let reader = bed::InputReader::Lines(input.into_iter());
+
+//     CompressorService::compress_pileup(reader, Some(output_path))
+//         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+//     Ok(())
+// }
+
 #[pymodule]
 fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(methylation_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
+    // m.add_function(wrap_pyfunction!(bgzf_pileup_from_lines, m)?)?;
     m.add_class::<MethylationOutput>()?;
+    m.add_class::<BgzfWriter>()?;
     Ok(())
 }

@@ -25,6 +25,13 @@ impl WriterType {
         }
     }
 
+    pub fn compress_from_lines(&mut self, lines: std::vec::IntoIter<String>) -> Result<()> {
+        match self {
+            WriterType::File(w) => w.compress_from_lines(lines),
+            WriterType::StdOut(w) => w.compress_from_lines(lines),
+        }
+    }
+
     pub fn write_tabix(&mut self, path: &Path) -> Result<()> {
         match self {
             WriterType::File(w) => w.write_tabix(path),
@@ -85,6 +92,16 @@ impl<W: Write> Writer<W> {
             line.clear();
         }
 
+        Ok(())
+    }
+
+    pub fn compress_from_lines(&mut self, lines: std::vec::IntoIter<String>) -> Result<()> {
+        for line in lines {
+            let record_string = PileupRecordString::new(line);
+            let record = PileupRecord::try_from(record_string)?;
+
+            self.write_pileup_record(&record)?;
+        }
         Ok(())
     }
 
