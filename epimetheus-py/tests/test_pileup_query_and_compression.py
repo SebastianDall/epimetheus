@@ -112,29 +112,81 @@ def test_bgzf_force_overwrite(data_dir, tmp_path):
     new_size = output_file.stat().st_size
 
 def test_bgzf_compression_from_lines(data_dir, tmp_path):
-    """Test bgzf compression with automatic output naming"""
-    # Copy input file to temp directory so we can test auto-naming
+    """Test bgzf streaming compression with contig name transformation"""
     pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
-    temp_output= tmp_path / "output_lines.bed.gz"
+    temp_output = tmp_path / "output_lines.bed.gz"
+
+    # Verify input file exists
+    assert os.path.exists(pileup_input), f"Input file not found: {pileup_input}"
 
     writer = epymetheus.BgzfWriter(str(temp_output), force=True)
 
-    for c in ["contig_2", "contig_3"]:
-        records = epymetheus.query_pileup_records(pileup_input, [c])
-        lines = []
-        for record in records:
-            contig_parts = record["contig"].split("_")
-            suffix = int(contig_parts[1]) + 2
-            new_contig = f"contig_{suffix}"
+    original_record_counts = {}
+    processed_record_counts = {}
 
-            line = f"{new_contig}\t{record['start']}\t{record['end']}\t{record['mod_type']}\t{record['score']}\t{record['strand']}\t{record['start_pos']}\t{record['end_pos']}\t{record['color']}\t{record['n_valid_cov']}\t{record['fraction_modified']}\t{record['n_modified']}\t{record['n_canonical']}\t{record['n_other_mod']}\t{record['n_delete']}\t{record['n_fail']}\t{record['n_diff']}\t{record['n_no_call']}"
-            lines.append(line)
+    try:
+        for c in ["contig_2", "contig_3"]:
+            records = epymetheus.query_pileup_records(pileup_input, [c])
+            assert len(records) > 0, f"No records found for contig {c} in input file"
+            
+            original_record_counts[c] = len(records)
+            lines = []
+            
+            for record in records:
+                # Validate record structure
+                required_fields = ["contig", "start", "end", "mod_type", "score", "strand"]
+                for field in required_fields:
+                    assert field in record, f"Missing required field '{field}' in record"
+                
+                contig_parts = record["contig"].split("_")
+                assert len(contig_parts) >= 2, f"Invalid contig format: {record['contig']}"
+                
+                suffix = int(contig_parts[1]) + 2
+                new_contig = f"contig_{suffix}"
 
-        writer.write_lines(lines)
+                line = f"{new_contig}\t{record['start']}\t{record['end']}\t{record['mod_type']}\t{record['score']}\t{record['strand']}\t{record['start_pos']}\t{record['end_pos']}\t{record['color']}\t{record['n_valid_cov']}\t{record['fraction_modified']}\t{record['n_modified']}\t{record['n_canonical']}\t{record['n_other_mod']}\t{record['n_delete']}\t{record['n_fail']}\t{record['n_diff']}\t{record['n_no_call']}"
+                lines.append(line)
 
-    writer.finish()
+            writer.write_lines(lines)
+            processed_record_counts[c] = len(lines)
 
-    expected_contigs = ["contig_4", "contig_5"]
-    contigs_in_output = epymetheus.query_pileup_records(str(temp_output), expected_contigs)
-    unique_contigs = list(set(record["contig"] for record in contigs_in_output))
-    assert sorted(unique_contigs) == sorted(expected_contigs)
+        writer.finish()
+
+        # Verify output files exist
+        assert temp_output.exists(), "Compressed output file should exist"
+        assert Path(f"{temp_output}.tbi").exists(), "Tabix index file should exist"
+
+        # Verify transformed data
+        expected_contigs = ["contig_4", "contig_5"]
+        contigs_in_output = epymetheus.query_pileup_records(str(temp_output), expected_contigs)
+        
+        assert len(contigs_in_output) > 0, "No records found in compressed output"
+        
+        unique_contigs = list(set(record["contig"] for record in contigs_in_output))
+        assert sorted(unique_contigs) == sorted(expected_contigs), f"Expected contigs {expected_contigs}, got {unique_contigs}"
+        
+        # Verify record counts are preserved
+        output_counts = {}
+        for contig in expected_contigs:
+            contig_records = [r for r in contigs_in_output if r["contig"] == contig]
+            output_counts[contig] = len(contig_records)
+        
+        # Map back to original contigs for comparison
+        original_contig_2_count = original_record_counts["contig_2"]
+        original_contig_3_count = original_record_counts["contig_3"]
+        
+        assert output_counts["contig_4"] == original_contig_2_count, f"Record count mismatch for contig_4: expected {original_contig_2_count}, got {output_counts['contig_4']}"
+        assert output_counts["contig_5"] == original_contig_3_count, f"Record count mismatch for contig_5: expected {original_contig_3_count}, got {output_counts['contig_5']}"
+        
+        print(f"Successfully processed {sum(original_record_counts.values())} records")
+        print(f"Original counts: {original_record_counts}")
+        print(f"Output counts: {output_counts}")
+
+    except Exception as e:
+        # Cleanup on failure
+        if temp_output.exists():
+            temp_output.unlink()
+        tbi_file = Path(f"{temp_output}.tbi")
+        if tbi_file.exists():
+            tbi_file.unlink()
+        raise e
