@@ -437,6 +437,7 @@ dependencies = [
  "noodles-core",
  "noodles-csi",
  "noodles-tabix",
+ "rayon",
  "seq_io",
  "tempfile",
 ]
