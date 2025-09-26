@@ -24,7 +24,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.cargo
-            pkgs.rustc
+            # pkgs.rustc
             pkgs.linuxKernel.packages.linux_zen.perf
             pkgs.cargo-cross
             pkgs.cargo-release
