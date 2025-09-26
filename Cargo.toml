@@ -6,7 +6,7 @@ default-members = ["methylome", "epimetheus-core", "epimetheus-cli", "epimetheus
 
 [workspace.package]
 version = "0.7.2"
-edition = "2021"
+edition = "2024"
 authors = ["semoda@bio.aau.dk"]
 
 description = "Cli tool for fast lookup in pileup for motif methylation"
