@@ -15,8 +15,9 @@ use epimetheus_core::services::traits::PileupReader;
 use epimetheus_io::io::writers::bgzip::Writer;
 use epimetheus_io::io::writers::bgzip::WriterType;
 use epimetheus_io::services::compression_service::CompressorService;
+use polars::prelude::*;
 use pyo3::prelude::*;
-use pyo3::types;
+use pyo3_polars::PyDataFrame;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -111,17 +112,17 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
-/// Query pileup records for specific contigs.
+/// Query pileup records for specific contigs and return as Polars DataFrame.
 ///
 /// This function reads a pileup file and extracts all methylation records
-/// for the specified contigs, returning them as a list of dictionaries.
+/// for the specified contigs, returning them as a Polars DataFrame for efficient processing.
 ///
 /// Args:
 ///     pileup_path (str): Path to the pileup file (BED format, can be gzipped)
 ///     contigs (List[str]): List of contig names to query
 ///
 /// Returns:
-///     List[Dict]: List of dictionaries containing pileup record data with keys:
+///     polars.DataFrame: DataFrame containing pileup record data with columns:
 ///         - contig: Contig/chromosome name
 ///         - start: Start position (0-based)
 ///         - end: End position
@@ -145,44 +146,81 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 ///     PyIOError: If the pileup file cannot be read
 ///     PyRuntimeError: If querying fails due to data processing issues
 #[pyfunction]
-fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyObject> {
+fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyDataFrame> {
     let mut reader =
         epimetheus_io::io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-    Python::with_gil(|py| {
-        let list = types::PyList::empty(py);
+    // Pre-allocate vectors for columns
+    let mut contig_vec = Vec::new();
+    let mut start_vec = Vec::new();
+    let mut end_vec = Vec::new();
+    let mut mod_type_vec = Vec::new();
+    let mut score_vec = Vec::new();
+    let mut strand_vec = Vec::new();
+    let mut start_pos_vec = Vec::new();
+    let mut end_pos_vec = Vec::new();
+    let mut color_vec = Vec::new();
+    let mut n_valid_cov_vec = Vec::new();
+    let mut fraction_modified_vec = Vec::new();
+    let mut n_modified_vec = Vec::new();
+    let mut n_canonical_vec = Vec::new();
+    let mut n_other_mod_vec = Vec::new();
+    let mut n_delete_vec = Vec::new();
+    let mut n_fail_vec = Vec::new();
+    let mut n_diff_vec = Vec::new();
+    let mut n_no_call_vec = Vec::new();
 
-        for contig in contigs {
-            let records = query_pileup(&mut reader, &[contig])
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    for contig in contigs {
+        let records = query_pileup(&mut reader, &[contig])
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
-            for record in records {
-                let dict = types::PyDict::new(py);
-                dict.set_item("contig", record.contig)?;
-                dict.set_item("start", record.start)?;
-                dict.set_item("end", record.end)?;
-                dict.set_item("mod_type", record.mod_type.to_pileup_code().to_string())?;
-                dict.set_item("score", record.score)?;
-                dict.set_item("strand", record.strand.to_string())?;
-                dict.set_item("start_pos", record.start_pos)?;
-                dict.set_item("end_pos", record.end_pos)?;
-                dict.set_item("color", record.color)?;
-                dict.set_item("n_valid_cov", record.n_valid_cov)?;
-                dict.set_item("fraction_modified", record.fraction_modified)?;
-                dict.set_item("n_modified", record.n_modified)?;
-                dict.set_item("n_canonical", record.n_canonical)?;
-                dict.set_item("n_other_mod", record.n_other_mod)?;
-                dict.set_item("n_delete", record.n_delete)?;
-                dict.set_item("n_fail", record.n_fail)?;
-                dict.set_item("n_diff", record.n_diff)?;
-                dict.set_item("n_no_call", record.n_no_call)?;
-
-                list.append(dict)?;
-            }
+        for record in records {
+            contig_vec.push(record.contig);
+            start_vec.push(record.start);
+            end_vec.push(record.end);
+            mod_type_vec.push(record.mod_type.to_pileup_code().to_string());
+            score_vec.push(record.score);
+            strand_vec.push(record.strand.to_string());
+            start_pos_vec.push(record.start_pos);
+            end_pos_vec.push(record.end_pos);
+            color_vec.push(record.color);
+            n_valid_cov_vec.push(record.n_valid_cov);
+            fraction_modified_vec.push(record.fraction_modified);
+            n_modified_vec.push(record.n_modified);
+            n_canonical_vec.push(record.n_canonical);
+            n_other_mod_vec.push(record.n_other_mod);
+            n_delete_vec.push(record.n_delete);
+            n_fail_vec.push(record.n_fail);
+            n_diff_vec.push(record.n_diff);
+            n_no_call_vec.push(record.n_no_call);
         }
-        Ok(list.into())
-    })
+    }
+
+    // Create DataFrame from columns
+    let df = df! [
+        "contig" => contig_vec,
+        "start" => start_vec,
+        "end" => end_vec,
+        "mod_type" => mod_type_vec,
+        "score" => score_vec,
+        "strand" => strand_vec,
+        "start_pos" => start_pos_vec,
+        "end_pos" => end_pos_vec,
+        "color" => color_vec,
+        "n_valid_cov" => n_valid_cov_vec,
+        "fraction_modified" => fraction_modified_vec,
+        "n_modified" => n_modified_vec,
+        "n_canonical" => n_canonical_vec,
+        "n_other_mod" => n_other_mod_vec,
+        "n_delete" => n_delete_vec,
+        "n_fail" => n_fail_vec,
+        "n_diff" => n_diff_vec,
+        "n_no_call" => n_no_call_vec,
+    ]
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+    Ok(PyDataFrame(df))
 }
 
 /// Compress a pileup file using BGZF compression.
@@ -309,52 +347,6 @@ impl BgzfWriter {
         Ok(())
     }
 }
-
-// /// Compress a pileup file using BGZF compression from lines useful for streaming.
-// ///
-// /// This function compresses a pileup file using the BGZF (Blocked GZip Format)
-// /// compression algorithm, which allows for efficient random access.
-// ///
-// /// Args:
-// ///     input ([String]): Lines to compress.
-// ///     output (str): Path for the compressed output file. Must end with [.bed.gz]
-// ///
-// ///     force (bool): Whether to overwrite existing output file
-// ///
-// /// Returns:
-// ///     None
-// ///
-// /// Raises:
-// ///     PyRuntimeError: If compression fails due to IO errors or file access issues
-// ///     PyRuntimeError: If wrong filename provided
-// ///     PyFileExistsError: If filename provided already exists and '--force' is false
-// #[pyfunction]
-// fn bgzf_pileup_from_lines(input: Vec<String>, output: &str, force: bool) -> PyResult<()> {
-//     if !output.ends_with(".bed.gz") {
-//         return Err(pyo3::exceptions::PyRuntimeError::new_err(
-//             "Output should have the extension .bed.gz",
-//         ));
-//     }
-
-//     let output_path = Path::new(output);
-
-//     if !force & output_path.exists() {
-//         let message = format!(
-//             "File '{}' already exists. Set '--force' to override.",
-//             &output_path.display()
-//         );
-
-//         // warnings.call_method1("warn", (message,))?;
-//         return Err(pyo3::exceptions::PyFileExistsError::new_err(message));
-//     }
-
-//     let reader = bed::InputReader::Lines(input.into_iter());
-
-//     CompressorService::compress_pileup(reader, Some(output_path))
-//         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
-
-//     Ok(())
-// }
 
 #[pymodule]
 fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {

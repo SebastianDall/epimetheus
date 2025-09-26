@@ -45,9 +45,7 @@ def test_query_data(data_dir, tmp_path):
     """Test querying multiple contigs and the data"""
     pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
 
-    pileup_records = epymetheus.query_pileup_records(pileup_input, contigs=["contig_2","contig_3"])
-
-    df = pl.DataFrame(pileup_records)
+    df = epymetheus.query_pileup_records(pileup_input, contigs=["contig_2","contig_3"])
 
     assert df.columns == [
         "contig",
@@ -128,24 +126,20 @@ def test_bgzf_compression_from_lines(data_dir, tmp_path):
         for c in ["contig_2", "contig_3"]:
             records = epymetheus.query_pileup_records(pileup_input, [c])
             assert len(records) > 0, f"No records found for contig {c} in input file"
+
+            required_columns = ["contig","start","end","mod_type","score","strand","start_pos","end_pos","color","n_valid_cov","fraction_modified","n_modified","n_canonical","n_other_mod","n_delete","n_fail","n_diff","n_no_call"]
+            assert records.columns == required_columns, "Columns does not match"
             
             original_record_counts[c] = len(records)
-            lines = []
-            
-            for record in records:
-                # Validate record structure
-                required_fields = ["contig", "start", "end", "mod_type", "score", "strand"]
-                for field in required_fields:
-                    assert field in record, f"Missing required field '{field}' in record"
-                
-                contig_parts = record["contig"].split("_")
-                assert len(contig_parts) >= 2, f"Invalid contig format: {record['contig']}"
-                
-                suffix = int(contig_parts[1]) + 2
-                new_contig = f"contig_{suffix}"
 
-                line = f"{new_contig}\t{record['start']}\t{record['end']}\t{record['mod_type']}\t{record['score']}\t{record['strand']}\t{record['start_pos']}\t{record['end_pos']}\t{record['color']}\t{record['n_valid_cov']}\t{record['fraction_modified']}\t{record['n_modified']}\t{record['n_canonical']}\t{record['n_other_mod']}\t{record['n_delete']}\t{record['n_fail']}\t{record['n_diff']}\t{record['n_no_call']}"
-                lines.append(line)
+            mut_records = records.with_columns(
+                pl.when(pl.col("contig") == "contig_2")
+                    .then(pl.lit("contig_4"))
+                    .otherwise(pl.lit("contig_5")).alias("contig")
+            )
+
+            csv_string = mut_records.write_csv(separator="\t", include_header=False)
+            lines = csv_string.strip().split('\n')
 
             writer.write_lines(lines)
             processed_record_counts[c] = len(lines)
@@ -160,16 +154,16 @@ def test_bgzf_compression_from_lines(data_dir, tmp_path):
         expected_contigs = ["contig_4", "contig_5"]
         contigs_in_output = epymetheus.query_pileup_records(str(temp_output), expected_contigs)
         
-        assert len(contigs_in_output) > 0, "No records found in compressed output"
+        assert contigs_in_output.shape[0] > 0, "No records found in compressed output"
         
-        unique_contigs = list(set(record["contig"] for record in contigs_in_output))
+        unique_contigs = contigs_in_output["contig"].unique().to_list()
         assert sorted(unique_contigs) == sorted(expected_contigs), f"Expected contigs {expected_contigs}, got {unique_contigs}"
         
         # Verify record counts are preserved
         output_counts = {}
         for contig in expected_contigs:
-            contig_records = [r for r in contigs_in_output if r["contig"] == contig]
-            output_counts[contig] = len(contig_records)
+            contig_records = contigs_in_output.filter(pl.col("contig") == contig)
+            output_counts[contig] = contig_records.shape[0]
         
         # Map back to original contigs for comparison
         original_contig_2_count = original_record_counts["contig_2"]
