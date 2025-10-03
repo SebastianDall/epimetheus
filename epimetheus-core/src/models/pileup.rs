@@ -1,6 +1,8 @@
 use methylome::{ModType, Strand};
 use std::fmt;
 
+use crate::models::methylation::{MethylationCoverage, MethylationRecord};
+
 // pub struct Pileup {
 //     records: Vec<PileupRecord>,
 // }
@@ -39,6 +41,32 @@ pub struct PileupRecord {
     pub n_fail: u32,
     pub n_diff: u32,
     pub n_no_call: u32,
+}
+
+impl PileupRecord {
+    pub fn to_methylation_record(&self) -> anyhow::Result<MethylationRecord> {
+        let methylation_coverage =
+            MethylationCoverage::new(self.n_modified, self.n_valid_cov, self.n_other_mod)?;
+
+        Ok(MethylationRecord {
+            contig: self.contig.clone(),
+            position: self.start as usize,
+            strand: self.strand,
+            mod_type: self.mod_type,
+            methylation: methylation_coverage,
+        })
+    }
+
+    pub fn meets_quality_threshold(
+        &self,
+        min_valid_read_coverage: u32,
+        min_diff_fraction: f32,
+    ) -> bool {
+        self.n_valid_cov >= min_valid_read_coverage
+            && (self.n_valid_cov as f32 / (self.n_valid_cov as f32 + self.n_diff as f32))
+                >= min_diff_fraction
+            && self.n_other_mod <= self.n_modified
+    }
 }
 
 impl TryFrom<PileupRecordString> for PileupRecord {
