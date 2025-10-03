@@ -1,0 +1,20 @@
+[package]
+name = "epimetheus-orchestration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+epimetheus-core = { path = "../epimetheus-core", features = ["python"] }
+epimetheus-io = { path = "../epimetheus-io"}
+methylome = { path = "../methylome"}
+indicatif = { version = "*", features = ["rayon"] }
+humantime = {workspace = true }
+anyhow = { workspace = true }
+log = {workspace = true}
+rayon = { workspace = true }
+ahash = "0.8.11"
+
