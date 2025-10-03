@@ -170,7 +170,7 @@ mod tests {
             .methylated_positions
             .get(&(0, Strand::Negative, ModType::FiveMC));
 
-        let expected_methylation = MethylationCoverage::new(10, 133).unwrap();
+        let expected_methylation = MethylationCoverage::new(10, 133, 0).unwrap();
 
         assert!(pos_0.is_some());
         assert_eq!(pos_0, Some(&expected_methylation));
@@ -178,7 +178,7 @@ mod tests {
         let pos_1 = contig
             .methylated_positions
             .get(&(1, Strand::Positive, ModType::SixMA));
-        let expected_methylation = MethylationCoverage::new(5, 174).unwrap();
+        let expected_methylation = MethylationCoverage::new(5, 174, 0).unwrap();
         assert!(pos_1.is_some());
         assert_eq!(pos_1, Some(&expected_methylation));
 

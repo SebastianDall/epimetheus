@@ -14,7 +14,7 @@ pub struct MethylationCoverage {
 }
 
 impl MethylationCoverage {
-    pub fn new(n_modified: u32, n_valid_cov: u32) -> Result<Self> {
+    pub fn new(n_modified: u32, n_valid_cov: u32, n_other_mod: u32) -> Result<Self> {
         if n_modified > n_valid_cov {
             bail!(
                 "Invalid coverage: n_valid_cov ({}) cannot be less than n_modified ({})",
@@ -22,6 +22,8 @@ impl MethylationCoverage {
                 n_modified
             )
         }
+
+        let n_valid_cov = n_valid_cov - n_other_mod;
 
         Ok(Self {
             n_modified,
@@ -380,11 +382,11 @@ mod test {
     #[test]
     fn test_methylation_coverage_valid() -> Result<()> {
         // Test valid inputs
-        let coverage = MethylationCoverage::new(5, 10)?;
+        let coverage = MethylationCoverage::new(5, 10, 0)?;
         assert_eq!(coverage.n_modified, 5);
         assert_eq!(coverage.n_valid_cov, 10);
 
-        let coverage = MethylationCoverage::new(0, 0)?;
+        let coverage = MethylationCoverage::new(0, 0, 0)?;
         assert_eq!(coverage.n_modified, 0);
         assert_eq!(coverage.n_valid_cov, 0);
 
@@ -394,7 +396,7 @@ mod test {
     #[test]
     fn test_methylation_coverage_invalid() {
         // Test invalid input: n_valid_cov < n_modified
-        let result = MethylationCoverage::new(10, 5);
+        let result = MethylationCoverage::new(10, 5, 0);
 
         assert!(result.is_err());
         if let Err(e) = result {
