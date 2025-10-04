@@ -62,3 +62,28 @@ def test_methylation_pattern_weighted_mean(data_dir, tmp_path):
     actual = outfile.read_text()
     expected_text = open(expected).read()
     assert _normalize(actual) == _normalize(expected_text)
+
+
+
+def test_methylation_pattern_weighted_mean_from_df(data_dir, tmp_path):
+    pileup = os.path.join(data_dir, "geobacillus.bed.gz")
+    assembly = os.path.join(data_dir, "geobacillus-plasmids.assembly.fasta")
+    expected = os.path.join(data_dir, "expected_out_weighted_mean.tsv")
+
+    df = epymetheus.query_pileup_records(pileup, ["contig_2", "contig_3"])
+    print(df)
+
+    result = epymetheus.methylation_pattern_from_dataframe(
+        df,
+        assembly,
+        1,
+        motifs = ["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],
+        min_valid_read_coverage=3,
+        min_valid_cov_to_diff_fraction=0.8,
+        output_type=MethylationOutput.WeightedMean
+    )
+    print(result)
+
+    actual = outfile.read_text()
+    expected_text = open(expected).read()
+    assert _normalize(actual) == _normalize(expected_text)

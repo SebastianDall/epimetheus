@@ -9,7 +9,8 @@ dynamic = ["version"]
 authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
 dependencies = [
-  "polars"
+  "polars",
+  "pyarrow"
 ]
 
 
