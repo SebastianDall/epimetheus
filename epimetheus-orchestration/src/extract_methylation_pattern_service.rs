@@ -9,22 +9,85 @@ use epimetheus_core::{
             MethylationOutput, MethylationPatternVariant, MethylationRecord,
             MotifMethylationPositions,
         },
+        pileup::PileupRecord,
     },
     services::{
         domain::contig_service::populate_contig_with_methylation,
         traits::{BatchLoader, PileupReader},
     },
 };
-use epimetheus_io::services::data_loading_service::load_pileup_records_for_contig;
+use epimetheus_io::{
+    loaders::sequential_batch_loader::SequentialBatchLoader,
+    services::data_loading_service::load_pileup_records_for_contig,
+};
 use humantime::format_duration;
 use indicatif::ProgressBar;
 use log::{debug, info};
 use methylome::Motif;
+use polars::prelude::*;
 use rayon::prelude::*;
-use std::path::Path;
-use std::{collections::HashSet, time::Instant};
+use std::{collections::HashSet, io::BufReader, time::Instant};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
-pub fn extract_methylation_patten_from_gz<R: PileupReader + Clone>(
+#[derive(Debug)]
+pub enum MethylationInput {
+    GzFile(PathBuf),
+    BedFile(PathBuf, usize),
+    DataFrame(DataFrame),
+}
+
+pub fn extract_methylation_pattern(
+    input: MethylationInput,
+    contigs: AHashMap<String, Contig>,
+    motifs: Vec<Motif>,
+    threads: usize,
+    min_valid_read_coverage: u32,
+    min_valid_cov_to_diff_fraction: f32,
+    allow_mismatch: bool,
+    output_type: &MethylationOutput,
+) -> Result<MethylationPatternVariant> {
+    match input {
+        MethylationInput::GzFile(path) => {
+            extract_methylation_patten_from_gz::<epimetheus_io::io::readers::bgzf_bed::Reader>(
+                contigs,
+                &path,
+                motifs,
+                threads,
+                min_valid_read_coverage,
+                min_valid_cov_to_diff_fraction,
+                allow_mismatch,
+                output_type,
+            )
+        }
+        MethylationInput::BedFile(path, batch_size) => {
+            let file = File::open(&path)?;
+            let buf_reader = BufReader::new(file);
+            let mut loader = SequentialBatchLoader::new(
+                buf_reader,
+                contigs,
+                batch_size,
+                min_valid_read_coverage,
+                min_valid_cov_to_diff_fraction,
+                allow_mismatch,
+            );
+            extract_methylation_pattern_bed(&mut loader, motifs, threads, output_type)
+        }
+        MethylationInput::DataFrame(df) => extract_methylation_pattern_polars(
+            contigs,
+            df,
+            motifs,
+            threads,
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+            output_type,
+        ),
+    }
+}
+
+fn extract_methylation_patten_from_gz<R: PileupReader + Clone>(
     contigs: AHashMap<String, Contig>,
     pileup_path: &Path,
     motifs: Vec<Motif>,
@@ -159,7 +222,7 @@ pub fn extract_methylation_patten_from_gz<R: PileupReader + Clone>(
     Ok(merged_results)
 }
 
-pub fn extract_methylation_pattern_bed<L: BatchLoader<GenomeWorkspace>>(
+fn extract_methylation_pattern_bed<L: BatchLoader<GenomeWorkspace>>(
     loader: &mut L,
     motifs: Vec<Motif>,
     threads: usize,
@@ -239,6 +302,137 @@ pub fn extract_methylation_pattern_bed<L: BatchLoader<GenomeWorkspace>>(
 
         MethylationOutput::WeightedMean => {
             let collected = all_batch_results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
+                        weighted_mean
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::WeightedMean(collected)
+        }
+    };
+
+    Ok(merged_results)
+}
+
+fn extract_methylation_pattern_polars(
+    contigs: AHashMap<String, Contig>,
+    pileup_df: DataFrame,
+    motifs: Vec<Motif>,
+    threads: usize,
+    min_valid_read_coverage: u32,
+    min_valid_cov_to_diff_fraction: f32,
+    output_type: &MethylationOutput,
+) -> Result<MethylationPatternVariant> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("Could not initialize threadpool");
+
+    let pileup_records: Result<Vec<PileupRecord>, _> = (0..pileup_df.height())
+        .map(|i| -> Result<PileupRecord, anyhow::Error> {
+            let row = pileup_df.get_row(i)?;
+
+            Ok(PileupRecord::new(
+                row.0[0].get_str().unwrap().to_string(),
+                row.0[1].get_str().unwrap().parse()?,
+                row.0[2].get_str().unwrap().parse()?,
+                row.0[3].get_str().unwrap().parse()?,
+                row.0[4].get_str().unwrap().parse()?,
+                row.0[5].get_str().unwrap().parse()?,
+                row.0[6].get_str().unwrap().parse()?,
+                row.0[7].get_str().unwrap().parse()?,
+                row.0[8].get_str().unwrap().to_string(),
+                row.0[9].get_str().unwrap().parse()?,
+                row.0[10].get_str().unwrap().parse()?,
+                row.0[11].get_str().unwrap().parse()?,
+                row.0[12].get_str().unwrap().parse()?,
+                row.0[13].get_str().unwrap().parse()?,
+                row.0[14].get_str().unwrap().parse()?,
+                row.0[15].get_str().unwrap().parse()?,
+                row.0[16].get_str().unwrap().parse()?,
+                row.0[17].get_str().unwrap().parse()?,
+            ))
+        })
+        .collect();
+    let pileup_records = pileup_records?;
+
+    let mut meth_records = Vec::new();
+    for rec in &pileup_records {
+        match MethylationRecord::try_from_with_filters(
+            rec.clone(),
+            min_valid_read_coverage,
+            min_valid_cov_to_diff_fraction,
+        )? {
+            Some(m) => meth_records.push(m),
+            None => continue,
+        }
+    }
+
+    let records_by_contig: AHashMap<String, Vec<MethylationRecord>> = meth_records
+        .into_iter()
+        .fold(AHashMap::new(), |mut acc, record| {
+            acc.entry(record.get_contig_id()).or_default().push(record);
+            acc
+        });
+
+    let per_contig_results = records_by_contig
+        .par_iter()
+        .filter_map(|(contig_id, meth_records)| {
+            contigs
+                .get(contig_id)
+                .map(|contig| -> Result<MethylationPatternVariant> {
+                    let contig_w_meth =
+                        populate_contig_with_methylation(contig, meth_records.clone())?;
+                    let positions =
+                        calculate_contig_read_methylation_single(&contig_w_meth, motifs.clone())?;
+
+                    match output_type {
+                        MethylationOutput::Raw => Ok(MethylationPatternVariant::Raw(positions)),
+                        MethylationOutput::Median => Ok(MethylationPatternVariant::Median(
+                            positions.to_median_degrees(),
+                        )),
+                        MethylationOutput::WeightedMean => {
+                            Ok(MethylationPatternVariant::WeightedMean(
+                                positions.to_weighted_mean_degress(),
+                            ))
+                        }
+                    }
+                })
+        })
+        .collect::<Result<Vec<MethylationPatternVariant>>>()?;
+
+    let merged_results = match output_type {
+        MethylationOutput::Raw => {
+            let mut all_results = AHashMap::new();
+            for res in per_contig_results {
+                if let MethylationPatternVariant::Raw(positions) = res {
+                    all_results.extend(positions.methylation);
+                }
+            }
+            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
+        }
+        MethylationOutput::Median => {
+            let collected = per_contig_results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::Median(median) = meth {
+                        median
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::Median(collected)
+        }
+
+        MethylationOutput::WeightedMean => {
+            let collected = per_contig_results
                 .into_par_iter()
                 .flat_map(|meth| {
                     if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {

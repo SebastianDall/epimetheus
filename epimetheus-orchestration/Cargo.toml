@@ -16,5 +16,6 @@ humantime = {workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
 rayon = { workspace = true }
+polars = { version = "0.51" }
 ahash = "0.8.11"
 

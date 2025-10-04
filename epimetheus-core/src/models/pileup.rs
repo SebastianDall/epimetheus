@@ -45,6 +45,48 @@ pub struct PileupRecord {
 }
 
 impl PileupRecord {
+    pub fn new(
+        contig: String,
+        start: u32,
+        end: u32,
+        mod_type: ModType,
+        score: u32,
+        strand: Strand,
+        start_pos: u32,
+        end_pos: u32,
+        color: String,
+        n_valid_cov: u32,
+        fraction_modified: f64,
+        n_modified: u32,
+        n_canonical: u32,
+        n_other_mod: u32,
+        n_delete: u32,
+        n_fail: u32,
+        n_diff: u32,
+        n_no_call: u32,
+    ) -> Self {
+        Self {
+            contig,
+            start,
+            end,
+            mod_type,
+            score,
+            strand,
+            start_pos,
+            end_pos,
+            color,
+            n_valid_cov,
+            fraction_modified,
+            n_modified,
+            n_canonical,
+            n_other_mod,
+            n_delete,
+            n_fail,
+            n_diff,
+            n_no_call,
+        }
+    }
+
     pub fn to_methylation_record(&self) -> anyhow::Result<MethylationRecord> {
         let methylation_coverage =
             MethylationCoverage::new(self.n_modified, self.n_valid_cov, self.n_other_mod)?;

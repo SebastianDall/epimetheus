@@ -47,6 +47,7 @@ impl MethylationCoverage {
     }
 }
 
+#[derive(Clone)]
 pub struct MethylationRecord {
     pub contig: String,
     pub position: usize,
