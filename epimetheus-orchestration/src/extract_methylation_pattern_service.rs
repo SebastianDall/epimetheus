@@ -339,23 +339,23 @@ fn extract_methylation_pattern_polars(
 
             Ok(PileupRecord::new(
                 row.0[0].get_str().unwrap().to_string(),
-                row.0[1].get_str().unwrap().parse()?,
-                row.0[2].get_str().unwrap().parse()?,
+                row.0[1].try_extract::<u32>()?,
+                row.0[2].try_extract::<u32>()?,
                 row.0[3].get_str().unwrap().parse()?,
-                row.0[4].get_str().unwrap().parse()?,
+                row.0[4].try_extract::<u32>()?,
                 row.0[5].get_str().unwrap().parse()?,
-                row.0[6].get_str().unwrap().parse()?,
-                row.0[7].get_str().unwrap().parse()?,
+                row.0[6].try_extract::<u32>()?,
+                row.0[7].try_extract::<u32>()?,
                 row.0[8].get_str().unwrap().to_string(),
-                row.0[9].get_str().unwrap().parse()?,
-                row.0[10].get_str().unwrap().parse()?,
-                row.0[11].get_str().unwrap().parse()?,
-                row.0[12].get_str().unwrap().parse()?,
-                row.0[13].get_str().unwrap().parse()?,
-                row.0[14].get_str().unwrap().parse()?,
-                row.0[15].get_str().unwrap().parse()?,
-                row.0[16].get_str().unwrap().parse()?,
-                row.0[17].get_str().unwrap().parse()?,
+                row.0[9].try_extract::<u32>()?,
+                row.0[10].try_extract::<f64>()?,
+                row.0[11].try_extract::<u32>()?,
+                row.0[12].try_extract::<u32>()?,
+                row.0[13].try_extract::<u32>()?,
+                row.0[14].try_extract::<u32>()?,
+                row.0[15].try_extract::<u32>()?,
+                row.0[16].try_extract::<u32>()?,
+                row.0[17].try_extract::<u32>()?,
             ))
         })
         .collect();
@@ -448,4 +448,85 @@ fn extract_methylation_pattern_polars(
     };
 
     Ok(merged_results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::prelude::*;
+
+    #[test]
+    fn test_from_pileup() {
+        let contig_vec = ["contig_2"];
+        let start_vec = [0];
+        let end_vec = [1];
+        let mod_type_vec = ["a"];
+        let score_vec = [20];
+        let strand_vec = ["+"];
+        let start_pos_vec = [0];
+        let end_pos_vec = [1];
+        let color_vec = ["255,0,0"];
+        let n_valid_cov_vec = [20];
+        let fraction_modified_vec = [1.0];
+        let n_modified_vec = [20];
+        let n_canonical_vec = [0];
+        let n_other_mod_vec = [0];
+        let n_delete_vec = [0];
+        let n_fail_vec = [0];
+        let n_diff_vec = [0];
+        let n_no_call_vec = [0];
+
+        let pileup_df = df!(
+            "contig" => contig_vec,
+            "start" => start_vec,
+            "end" => end_vec,
+            "mod_type" => mod_type_vec,
+            "score" => score_vec,
+            "strand" => strand_vec,
+            "start_pos" => start_pos_vec,
+            "end_pos" => end_pos_vec,
+            "color" => color_vec,
+            "n_valid_cov" => n_valid_cov_vec,
+            "fraction_modified" => fraction_modified_vec,
+            "n_modified" => n_modified_vec,
+            "n_canonical" => n_canonical_vec,
+            "n_other_mod" => n_other_mod_vec,
+            "n_delete" => n_delete_vec,
+            "n_fail" => n_fail_vec,
+            "n_diff" => n_diff_vec,
+            "n_no_call" => n_no_call_vec,
+        )
+        .unwrap();
+
+        let pileup_records: Result<Vec<PileupRecord>, _> = (0..pileup_df.height())
+            .map(|i| -> Result<PileupRecord, anyhow::Error> {
+                let row = pileup_df.get_row(i)?;
+                println!("{:?}", row);
+
+                Ok(PileupRecord::new(
+                    row.0[0].get_str().unwrap().to_string(),
+                    row.0[1].try_extract::<u32>()?,
+                    row.0[2].try_extract::<u32>()?,
+                    row.0[3].get_str().unwrap().parse()?,
+                    row.0[4].try_extract::<u32>()?,
+                    row.0[5].get_str().unwrap().parse()?,
+                    row.0[6].try_extract::<u32>()?,
+                    row.0[7].try_extract::<u32>()?,
+                    row.0[8].get_str().unwrap().to_string(),
+                    row.0[9].try_extract::<u32>()?,
+                    row.0[10].try_extract::<f64>()?,
+                    row.0[11].try_extract::<u32>()?,
+                    row.0[12].try_extract::<u32>()?,
+                    row.0[13].try_extract::<u32>()?,
+                    row.0[14].try_extract::<u32>()?,
+                    row.0[15].try_extract::<u32>()?,
+                    row.0[16].try_extract::<u32>()?,
+                    row.0[17].try_extract::<u32>()?,
+                ))
+            })
+            .collect();
+        let pileup_records = pileup_records.unwrap();
+
+        assert_eq!(pileup_records[0].contig, "contig_2");
+    }
 }
