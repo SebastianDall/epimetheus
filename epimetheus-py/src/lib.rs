@@ -401,7 +401,6 @@ fn methylation_pattern_from_dataframe(
             let motifs = create_motifs(&motifs)?;
 
             let input = MethylationInput::DataFrame(pileup_df.0);
-            println!("{:?}", input);
 
             let meth_pattern = extract_methylation_pattern(
                 input,
