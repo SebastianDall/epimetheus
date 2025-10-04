@@ -5,7 +5,10 @@ use epimetheus_core::{
     models::{
         contig::Contig,
         genome_workspace::GenomeWorkspace,
-        methylation::{MethylationOutput, MethylationPatternVariant, MotifMethylationPositions},
+        methylation::{
+            MethylationOutput, MethylationPatternVariant, MethylationRecord,
+            MotifMethylationPositions,
+        },
     },
     services::{
         domain::contig_service::populate_contig_with_methylation,
@@ -73,16 +76,21 @@ pub fn extract_methylation_patten_from_gz<R: PileupReader + Clone>(
                 contig_id,
                 pileup_records.len()
             );
-            let meth_records = pileup_records
-                .iter()
-                .filter(|rec| {
-                    rec.meets_quality_threshold(
-                        min_valid_read_coverage,
-                        min_valid_cov_to_diff_fraction,
-                    )
-                })
-                .map(|rec| rec.to_methylation_record())
-                .collect::<Result<Vec<_>>>()?;
+
+            let mut meth_records = Vec::new();
+            for rec in pileup_records {
+                let meth = MethylationRecord::try_from_with_filters(
+                    rec,
+                    min_valid_read_coverage,
+                    min_valid_cov_to_diff_fraction,
+                )?;
+
+                match meth {
+                    Some(m) => meth_records.push(m),
+                    None => continue,
+                }
+            }
+
             debug!(
                 "{}\nMethylation records after filtering: {}",
                 contig_id,

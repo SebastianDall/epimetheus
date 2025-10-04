@@ -1,21 +1,22 @@
 use anyhow::{Result, bail};
 use clap::Parser;
-use epimetheus_core::services::application::{
-    methylation_pattern_service::extract_methylation_pattern,
-    motif_clustering_service::motif_clustering,
+use epimetheus_core::services::traits::FastaReader;
+use epimetheus_core::services::{
+    application::motif_clustering_service::motif_clustering, domain::motif_processor::create_motifs,
 };
 
-use epimetheus_io::io::readers::bgzf_bed::Reader as BgzipPileupReader;
-use epimetheus_io::io::readers::fasta::Reader as FastaReader;
+use epimetheus_io::loaders::sequential_batch_loader::SequentialBatchLoader;
 use epimetheus_io::services::compression_service::CompressorService;
-use epimetheus_io::{
-    loaders::sequential_batch_loader::SequentialBatchLoader,
-    services::decompression_service::extract_from_pileup,
-};
+use epimetheus_io::services::decompression_service::extract_from_pileup;
 
+use epimetheus_orchestration::extract_methylation_pattern_service::{
+    extract_methylation_patten_from_gz, extract_methylation_pattern_bed,
+};
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::{info, warn};
+use std::fs::File;
+use std::io::BufReader;
 use std::time::Instant;
 
 mod argparser;
@@ -37,21 +38,46 @@ fn main() -> Result<()> {
         argparser::Commands::MethylationPattern(methyl_args) => {
             create_output_file(&methyl_args.output)?;
 
-            let meth_pattern = extract_methylation_pattern::<
-                BgzipPileupReader,
-                FastaReader,
-                SequentialBatchLoader<std::io::BufReader<std::fs::File>>,
-            >(
-                &methyl_args.pileup,
-                &methyl_args.assembly,
-                methyl_args.threads,
-                &methyl_args.motifs,
-                methyl_args.min_valid_read_coverage,
-                methyl_args.batch_size,
-                methyl_args.min_valid_cov_to_diff_fraction,
-                methyl_args.allow_mismatch,
-                &methyl_args.output_type,
-            )?;
+            let motifs = create_motifs(&methyl_args.motifs)?;
+
+            let contigs =
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly)?;
+
+            let ext = methyl_args.pileup.extension().and_then(|s| s.to_str());
+            let meth_pattern = if ext == Some("gz") {
+                extract_methylation_patten_from_gz::<epimetheus_io::io::readers::bgzf_bed::Reader>(
+                    contigs,
+                    &methyl_args.pileup,
+                    motifs,
+                    methyl_args.threads,
+                    methyl_args.min_valid_read_coverage,
+                    methyl_args.min_valid_cov_to_diff_fraction,
+                    methyl_args.allow_mismatch,
+                    &methyl_args.output_type,
+                )
+            } else if ext == Some("bed") {
+                let file = File::open(&methyl_args.pileup)?;
+                let buf_reader = BufReader::new(file);
+                let mut loader = SequentialBatchLoader::new(
+                    buf_reader,
+                    contigs,
+                    methyl_args.batch_size,
+                    methyl_args.min_valid_read_coverage,
+                    methyl_args.min_valid_cov_to_diff_fraction,
+                    methyl_args.allow_mismatch,
+                );
+                extract_methylation_pattern_bed(
+                    &mut loader,
+                    motifs,
+                    methyl_args.threads,
+                    &methyl_args.output_type,
+                )
+            } else {
+                bail!(
+                    "Could not determine loading based on pileup file extension. Got: {:?}",
+                    ext
+                )
+            }?;
 
             meth_pattern.write_output(&methyl_args.output)?;
         }
