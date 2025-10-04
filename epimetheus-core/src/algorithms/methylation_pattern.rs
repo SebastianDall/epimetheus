@@ -73,39 +73,6 @@ pub fn calculate_contig_read_methylation_single(
 
         all_methylation_data.extend(methylation_data_fwd);
         all_methylation_data.extend(methylation_data_rev);
-
-        // // This is number of motif obervations with methylation data
-        // let n_motif_obs = methylation_data.len() as u32;
-
-        // let mean_read_cov = {
-        //     let total_cov: u64 = methylation_data
-        //         .iter()
-        //         .map(|cov| cov.get_n_valid_cov() as u64)
-        //         .sum();
-        //     total_cov as f64 / methylation_data.len() as f64
-        // };
-
-        // let mut fractions: Vec<f64> = methylation_data
-        //     .iter()
-        //     .map(|cov| cov.fraction_modified())
-        //     .collect();
-
-        // fractions.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        // let median = if fractions.len() % 2 == 0 {
-        //     let mid = fractions.len() / 2;
-        //     (fractions[mid - 1] + fractions[mid]) / 2.0
-        // } else {
-        //     fractions[fractions.len() / 2]
-        // };
-
-        // local_results.push(MedianMotifMethylationDegree {
-        //     contig: contig.id.clone(),
-        //     motif: motif.clone(),
-        //     median,
-        //     mean_read_cov,
-        //     n_motif_obs,
-        //     motif_occurences_total,
-        // })
     }
 
     Ok(MotifMethylationPositions {
@@ -146,16 +113,16 @@ pub fn calculate_contig_read_methylation_pattern(
 
 #[cfg(test)]
 mod tests {
-    use csv::ReaderBuilder;
     use std::{
         fs::File,
-        io::{BufReader, Write},
+        io::{BufRead, BufReader, Write},
     };
     use tempfile::NamedTempFile;
 
-    use crate::{
-        models::genome_workspace::GenomeWorkspaceBuilder,
-        services::domain::pileup_processor::parse_to_methylation_record,
+    use crate::models::{
+        genome_workspace::GenomeWorkspaceBuilder,
+        methylation::MethylationRecord,
+        pileup::{PileupRecord, PileupRecordString},
     };
 
     use super::*;
@@ -196,20 +163,14 @@ mod tests {
 
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
-        let mut rdr = ReaderBuilder::new()
-            .has_headers(false)
-            .delimiter(b'\t')
-            .from_reader(reader);
 
-        for res in rdr.records() {
+        for res in reader.lines() {
             let record = res.unwrap();
-
-            let n_valid_cov_str = record.get(9).unwrap();
-            let n_valid_cov = n_valid_cov_str.parse().unwrap();
-            let meth_record =
-                parse_to_methylation_record("contig_3".to_string(), &record, n_valid_cov, 0.8)
-                    .unwrap();
-            workspace_builder.add_record(meth_record.unwrap()).unwrap();
+            let pileup_record = PileupRecord::try_from(PileupRecordString::new(record)).unwrap();
+            let meth_record = MethylationRecord::try_from_with_filters(pileup_record, 1, 0.8)?;
+            if let Some(meth) = meth_record {
+                workspace_builder.add_record(meth).unwrap();
+            }
         }
 
         let workspace = workspace_builder.build();
