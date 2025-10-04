@@ -10,10 +10,10 @@ repository.workspace = true
 [dependencies]
 methylome = { path = "../methylome" }
 epimetheus-core = { path = "../epimetheus-core" }
-clap = { workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
 csv = { workspace = true }
+rayon = { workspace = true }
 noodles-tabix = "0.57.0"
 noodles-csi = "0.51.0"
 ahash = "0.8.11"
