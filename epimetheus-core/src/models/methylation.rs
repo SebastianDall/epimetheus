@@ -5,7 +5,10 @@ use anyhow::{Result, bail};
 use clap::ValueEnum;
 use methylome::{ModType, Motif, Strand};
 
-use crate::models::contig::{ContigId, Position as ContigPosition};
+use crate::models::{
+    contig::{ContigId, Position as ContigPosition},
+    pileup::PileupRecord,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct MethylationCoverage {
@@ -52,6 +55,21 @@ pub struct MethylationRecord {
     pub methylation: MethylationCoverage,
 }
 
+impl TryFrom<PileupRecord> for MethylationRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(value: PileupRecord) -> std::result::Result<Self, Self::Error> {
+        let meth =
+            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+        Ok(Self {
+            contig: value.contig.clone(),
+            position: value.start as usize,
+            strand: value.strand.clone(),
+            mod_type: value.mod_type.clone(),
+            methylation: meth,
+        })
+    }
+}
 impl MethylationRecord {
     pub fn new(
         contig: String,
@@ -67,6 +85,37 @@ impl MethylationRecord {
             mod_type,
             methylation,
         }
+    }
+
+    pub fn try_from_with_filters(
+        value: PileupRecord,
+        min_valid_read_coverage: u32,
+        min_valid_cov_to_diff_fraction: f32,
+    ) -> Result<Option<Self>> {
+        if value.n_valid_cov < min_valid_read_coverage {
+            return Ok(None);
+        }
+
+        if value.n_other_mod > value.n_modified {
+            return Ok(None);
+        }
+
+        if (value.n_valid_cov as f32 / (value.n_diff as f32 + value.n_valid_cov as f32))
+            < min_valid_cov_to_diff_fraction
+        {
+            return Ok(None);
+        }
+
+        let meth =
+            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+
+        Ok(Some(Self {
+            contig: value.contig.clone(),
+            position: value.start as usize,
+            strand: value.strand.clone(),
+            mod_type: value.mod_type.clone(),
+            methylation: meth,
+        }))
     }
 
     #[allow(dead_code)]

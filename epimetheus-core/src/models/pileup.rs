@@ -13,6 +13,7 @@ use crate::models::methylation::{MethylationCoverage, MethylationRecord};
 //     }
 // }
 
+#[derive(Clone)]
 pub struct PileupRecordString(pub String);
 
 impl PileupRecordString {
@@ -55,17 +56,6 @@ impl PileupRecord {
             mod_type: self.mod_type,
             methylation: methylation_coverage,
         })
-    }
-
-    pub fn meets_quality_threshold(
-        &self,
-        min_valid_read_coverage: u32,
-        min_diff_fraction: f32,
-    ) -> bool {
-        self.n_valid_cov >= min_valid_read_coverage
-            && (self.n_valid_cov as f32 / (self.n_valid_cov as f32 + self.n_diff as f32))
-                >= min_diff_fraction
-            && self.n_other_mod <= self.n_modified
     }
 }
 
