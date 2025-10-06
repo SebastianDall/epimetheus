@@ -39,6 +39,52 @@ pub enum MethylationInput {
     DataFrame(DataFrame),
 }
 
+fn merge_methylation_results(
+    results: Vec<MethylationPatternVariant>,
+    output_type: &MethylationOutput,
+) -> MethylationPatternVariant {
+    match output_type {
+        MethylationOutput::Raw => {
+            let mut all_results = AHashMap::new();
+            for res in results {
+                if let MethylationPatternVariant::Raw(positions) = res {
+                    all_results.extend(positions.methylation);
+                }
+            }
+            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
+        }
+        MethylationOutput::Median => {
+            let collected = results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::Median(median) = meth {
+                        median
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::Median(collected)
+        }
+
+        MethylationOutput::WeightedMean => {
+            let collected = results
+                .into_par_iter()
+                .flat_map(|meth| {
+                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
+                        weighted_mean
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+
+            MethylationPatternVariant::WeightedMean(collected)
+        }
+    }
+}
+
 pub fn extract_methylation_pattern(
     input: MethylationInput,
     contigs: AHashMap<String, Contig>,
@@ -178,46 +224,7 @@ fn extract_methylation_patten_from_gz<R: PileupReader + Clone>(
         })
         .collect::<Result<Vec<MethylationPatternVariant>>>()?;
 
-    let merged_results = match output_type {
-        MethylationOutput::Raw => {
-            let mut all_results = AHashMap::new();
-            for res in per_contig_results {
-                if let MethylationPatternVariant::Raw(positions) = res {
-                    all_results.extend(positions.methylation);
-                }
-            }
-            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
-        }
-        MethylationOutput::Median => {
-            let collected = per_contig_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::Median(median) = meth {
-                        median
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::Median(collected)
-        }
-
-        MethylationOutput::WeightedMean => {
-            let collected = per_contig_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
-                        weighted_mean
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::WeightedMean(collected)
-        }
-    };
+    let merged_results = merge_methylation_results(per_contig_results, output_type);
 
     Ok(merged_results)
 }
@@ -275,46 +282,7 @@ fn extract_methylation_pattern_bed<L: BatchLoader<GenomeWorkspace>>(
         batch_processing_time = Instant::now();
     }
 
-    let merged_results = match output_type {
-        MethylationOutput::Raw => {
-            let mut all_results = AHashMap::new();
-            for res in all_batch_results {
-                if let MethylationPatternVariant::Raw(positions) = res {
-                    all_results.extend(positions.methylation);
-                }
-            }
-            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
-        }
-        MethylationOutput::Median => {
-            let collected = all_batch_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::Median(median) = meth {
-                        median
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::Median(collected)
-        }
-
-        MethylationOutput::WeightedMean => {
-            let collected = all_batch_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
-                        weighted_mean
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::WeightedMean(collected)
-        }
-    };
+    let merged_results = merge_methylation_results(all_batch_results, output_type);
 
     Ok(merged_results)
 }
@@ -406,46 +374,7 @@ fn extract_methylation_pattern_polars(
         })
         .collect::<Result<Vec<MethylationPatternVariant>>>()?;
 
-    let merged_results = match output_type {
-        MethylationOutput::Raw => {
-            let mut all_results = AHashMap::new();
-            for res in per_contig_results {
-                if let MethylationPatternVariant::Raw(positions) = res {
-                    all_results.extend(positions.methylation);
-                }
-            }
-            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
-        }
-        MethylationOutput::Median => {
-            let collected = per_contig_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::Median(median) = meth {
-                        median
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::Median(collected)
-        }
-
-        MethylationOutput::WeightedMean => {
-            let collected = per_contig_results
-                .into_par_iter()
-                .flat_map(|meth| {
-                    if let MethylationPatternVariant::WeightedMean(weighted_mean) = meth {
-                        weighted_mean
-                    } else {
-                        Vec::new()
-                    }
-                })
-                .collect();
-
-            MethylationPatternVariant::WeightedMean(collected)
-        }
-    };
+    let merged_results = merge_methylation_results(per_contig_results, output_type);
 
     Ok(merged_results)
 }
