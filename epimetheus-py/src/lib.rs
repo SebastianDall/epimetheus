@@ -10,6 +10,7 @@
 //! - `bgzf_pileup`: Compress pileup files using BGZF format
 
 use epimetheus_core::models::methylation::MethylationOutput;
+use epimetheus_core::models::methylation::MethylationPatternVariant;
 use epimetheus_core::services::domain::motif_processor::create_motifs;
 use epimetheus_core::services::traits::FastaReader;
 use epimetheus_core::services::traits::PileupReader;
@@ -31,6 +32,101 @@ use std::str::FromStr;
 use epimetheus_core::services::application::motif_clustering_service::motif_clustering;
 use epimetheus_io::io::readers::bed;
 
+fn create_methylation_pattern_df(
+    meth_pattern: MethylationPatternVariant,
+) -> anyhow::Result<DataFrame> {
+    let df = match meth_pattern {
+        epimetheus_core::models::methylation::MethylationPatternVariant::Median(degrees) => {
+            let contig_vec: Vec<String> = degrees.iter().map(|d| d.contig.clone()).collect();
+            let motif_vec: Vec<String> = degrees
+                .iter()
+                .map(|d| d.motif.sequence_to_string())
+                .collect();
+            let mod_type_vec: Vec<String> = degrees
+                .iter()
+                .map(|d| d.motif.mod_type.to_pileup_code().to_string())
+                .collect();
+            let mod_position_vec: Vec<u64> = degrees
+                .iter()
+                .map(|d| d.motif.mod_position as u64)
+                .collect();
+            let methylation_value_vec: Vec<f64> = degrees.iter().map(|d| d.median).collect();
+            let mean_read_cov_vec: Vec<f64> = degrees.iter().map(|d| d.mean_read_cov).collect();
+            let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
+
+            df![
+                "contig" => contig_vec,
+                "motif" => motif_vec,
+                "mod_type" => mod_type_vec,
+                "mod_position" => mod_position_vec,
+                "methylation_value" => methylation_value_vec,
+                "mean_read_cov" => mean_read_cov_vec,
+                "n_motif_obs" => n_motif_obs_vec,
+            ]?
+        }
+        epimetheus_core::models::methylation::MethylationPatternVariant::WeightedMean(degrees) => {
+            let contig_vec: Vec<String> = degrees.iter().map(|d| d.contig.clone()).collect();
+            let motif_vec: Vec<String> = degrees
+                .iter()
+                .map(|d| d.motif.sequence_to_string())
+                .collect();
+            let mod_type_vec: Vec<String> = degrees
+                .iter()
+                .map(|d| d.motif.mod_type.to_pileup_code().to_string())
+                .collect();
+            let mod_position_vec: Vec<u64> = degrees
+                .iter()
+                .map(|d| d.motif.mod_position as u64)
+                .collect();
+            let methylation_value_vec: Vec<f64> = degrees.iter().map(|d| d.w_mean).collect();
+            let mean_read_cov_vec: Vec<f64> = degrees.iter().map(|d| d.mean_read_cov).collect();
+            let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
+
+            df![
+                "contig" => contig_vec,
+                "motif" => motif_vec,
+                "mod_type" => mod_type_vec,
+                "mod_position" => mod_position_vec,
+                "methylation_value" => methylation_value_vec,
+                "mean_read_cov" => mean_read_cov_vec,
+                "n_motif_obs" => n_motif_obs_vec,
+            ]?
+        }
+        epimetheus_core::models::methylation::MethylationPatternVariant::Raw(positions) => {
+            let mut contig_vec = Vec::new();
+            let mut start_vec = Vec::new();
+            let mut strand_vec = Vec::new();
+            let mut motif_vec = Vec::new();
+            let mut mod_type_vec = Vec::new();
+            let mut mod_position_vec = Vec::new();
+            let mut n_modified_vec = Vec::new();
+            let mut n_valid_cov_vec = Vec::new();
+
+            for ((contig_id, motif, pos, strand), meth) in positions.methylation {
+                contig_vec.push(contig_id);
+                start_vec.push(pos as u64);
+                strand_vec.push(strand.to_string());
+                motif_vec.push(motif.sequence_to_string());
+                mod_type_vec.push(motif.mod_type.to_pileup_code().to_string());
+                mod_position_vec.push(motif.mod_position as u64);
+                n_modified_vec.push(meth.get_n_modified());
+                n_valid_cov_vec.push(meth.get_n_valid_cov());
+            }
+
+            df![
+                "contig" => contig_vec,
+                "start" => start_vec,
+                "strand" => strand_vec,
+                "motif" => motif_vec,
+                "mod_type" => mod_type_vec,
+                "mod_position" => mod_position_vec,
+                "n_modified" => n_modified_vec,
+                "n_valid_cov" => n_valid_cov_vec,
+            ]?
+        }
+    };
+    Ok(df)
+}
 /// Extract methylation patterns for specified DNA motifs from pileup data.
 ///
 /// This function processes Nanopore methylation calls from a pileup file and extracts
@@ -59,7 +155,7 @@ fn methylation_pattern(
     pileup: &str,
     assembly: &str,
     contigs: Option<Vec<String>>,
-    output: &str,
+    output: Option<&str>,
     threads: usize,
     motifs: Vec<String>,
     min_valid_read_coverage: u32,
@@ -67,7 +163,7 @@ fn methylation_pattern(
     min_valid_cov_to_diff_fraction: f32,
     allow_assembly_pileup_mismatch: bool,
     output_type: MethylationOutput,
-) -> PyResult<()> {
+) -> PyResult<PyDataFrame> {
     Python::with_gil(|py| {
         py.allow_threads(|| {
             let batch_size = if let Some(batch_size) = batch_size {
@@ -108,9 +204,14 @@ fn methylation_pattern(
                 &output_type,
             )?;
 
-            meth_pattern.write_output(Path::new(output))
+            if let Some(output_path) = output {
+                meth_pattern.write_output(Path::new(output_path))?;
+            }
+            let res_df = create_methylation_pattern_df(meth_pattern)?;
+            Ok(res_df)
         })
     })
+    .map(PyDataFrame)
     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
@@ -433,107 +534,7 @@ fn methylation_pattern_from_dataframe(
             )?;
 
             // Convert MethylationPatternVariant to DataFrame
-            let df = match meth_pattern {
-                epimetheus_core::models::methylation::MethylationPatternVariant::Median(
-                    degrees,
-                ) => {
-                    let contig_vec: Vec<String> =
-                        degrees.iter().map(|d| d.contig.clone()).collect();
-                    let motif_vec: Vec<String> = degrees
-                        .iter()
-                        .map(|d| d.motif.sequence_to_string())
-                        .collect();
-                    let mod_type_vec: Vec<String> = degrees
-                        .iter()
-                        .map(|d| d.motif.mod_type.to_pileup_code().to_string())
-                        .collect();
-                    let mod_position_vec: Vec<u64> = degrees
-                        .iter()
-                        .map(|d| d.motif.mod_position as u64)
-                        .collect();
-                    let methylation_value_vec: Vec<f64> =
-                        degrees.iter().map(|d| d.median).collect();
-                    let mean_read_cov_vec: Vec<f64> =
-                        degrees.iter().map(|d| d.mean_read_cov).collect();
-                    let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
-
-                    df![
-                        "contig" => contig_vec,
-                        "motif" => motif_vec,
-                        "mod_type" => mod_type_vec,
-                        "mod_position" => mod_position_vec,
-                        "methylation_value" => methylation_value_vec,
-                        "mean_read_cov" => mean_read_cov_vec,
-                        "n_motif_obs" => n_motif_obs_vec,
-                    ]?
-                }
-                epimetheus_core::models::methylation::MethylationPatternVariant::WeightedMean(
-                    degrees,
-                ) => {
-                    let contig_vec: Vec<String> =
-                        degrees.iter().map(|d| d.contig.clone()).collect();
-                    let motif_vec: Vec<String> = degrees
-                        .iter()
-                        .map(|d| d.motif.sequence_to_string())
-                        .collect();
-                    let mod_type_vec: Vec<String> = degrees
-                        .iter()
-                        .map(|d| d.motif.mod_type.to_pileup_code().to_string())
-                        .collect();
-                    let mod_position_vec: Vec<u64> = degrees
-                        .iter()
-                        .map(|d| d.motif.mod_position as u64)
-                        .collect();
-                    let methylation_value_vec: Vec<f64> =
-                        degrees.iter().map(|d| d.w_mean).collect();
-                    let mean_read_cov_vec: Vec<f64> =
-                        degrees.iter().map(|d| d.mean_read_cov).collect();
-                    let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
-
-                    df![
-                        "contig" => contig_vec,
-                        "motif" => motif_vec,
-                        "mod_type" => mod_type_vec,
-                        "mod_position" => mod_position_vec,
-                        "methylation_value" => methylation_value_vec,
-                        "mean_read_cov" => mean_read_cov_vec,
-                        "n_motif_obs" => n_motif_obs_vec,
-                    ]?
-                }
-                epimetheus_core::models::methylation::MethylationPatternVariant::Raw(positions) => {
-                    let mut contig_vec = Vec::new();
-                    let mut start_vec = Vec::new();
-                    let mut strand_vec = Vec::new();
-                    let mut motif_vec = Vec::new();
-                    let mut mod_type_vec = Vec::new();
-                    let mut mod_position_vec = Vec::new();
-                    let mut n_modified_vec = Vec::new();
-                    let mut n_valid_cov_vec = Vec::new();
-
-                    for ((contig_id, motif, pos, strand), meth) in positions.methylation {
-                        contig_vec.push(contig_id);
-                        start_vec.push(pos as u64);
-                        strand_vec.push(strand.to_string());
-                        motif_vec.push(motif.sequence_to_string());
-                        mod_type_vec.push(motif.mod_type.to_pileup_code().to_string());
-                        mod_position_vec.push(motif.mod_position as u64);
-                        n_modified_vec.push(meth.get_n_modified());
-                        n_valid_cov_vec.push(meth.get_n_valid_cov());
-                    }
-
-                    df![
-                        "contig" => contig_vec,
-                        "start" => start_vec,
-                        "strand" => strand_vec,
-                        "motif" => motif_vec,
-                        "mod_type" => mod_type_vec,
-                        "mod_position" => mod_position_vec,
-                        "n_modified" => n_modified_vec,
-                        "n_valid_cov" => n_valid_cov_vec,
-                    ]?
-                }
-            };
-
+            let df = create_methylation_pattern_df(meth_pattern)?;
             Ok(df)
         })
     })
