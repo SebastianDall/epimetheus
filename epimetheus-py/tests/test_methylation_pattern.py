@@ -24,6 +24,7 @@ def test_methylation_pattern_median(data_dir, tmp_path):
     epymetheus.methylation_pattern(
         pileup,
         assembly,
+        None,
         str(outfile),
         1,
         motifs = ["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],
@@ -50,6 +51,7 @@ def test_methylation_pattern_weighted_mean(data_dir, tmp_path):
     epymetheus.methylation_pattern(
         pileup,
         assembly,
+        None,
         str(outfile),
         1,
         motifs = ["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],

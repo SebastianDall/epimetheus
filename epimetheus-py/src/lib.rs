@@ -39,6 +39,7 @@ use epimetheus_io::io::readers::bed;
 /// Args:
 ///     pileup (str): Path to the input pileup file (BED format, can be gzipped)
 ///     assembly (str): Path to the assembly FASTA file
+///     contigs (List[str] | None): Optional list of contig names to filter for before calculating methylation.
 ///     output (str): Path for the output TSV file
 ///     threads (int): Number of threads to use for parallel processing
 ///     motifs (List[str]): List of DNA motifs to search for (e.g., ['GATC', 'CCWGG'])
@@ -57,6 +58,7 @@ use epimetheus_io::io::readers::bed;
 fn methylation_pattern(
     pileup: &str,
     assembly: &str,
+    contigs: Option<Vec<String>>,
     output: &str,
     threads: usize,
     motifs: Vec<String>,
@@ -74,8 +76,14 @@ fn methylation_pattern(
                 100
             };
 
-            let contigs =
-                epimetheus_io::io::readers::fasta::Reader::read_fasta(&Path::new(assembly))?;
+            let contigs = if let Some(contigs_filter) = contigs {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                    &Path::new(assembly),
+                    Some(contigs_filter),
+                )?
+            } else {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(&Path::new(assembly), None)?
+            };
 
             let motifs = create_motifs(&motifs)?;
 
@@ -396,8 +404,19 @@ fn methylation_pattern_from_dataframe(
 ) -> PyResult<PyDataFrame> {
     Python::with_gil(|py| {
         py.allow_threads(|| -> anyhow::Result<DataFrame> {
-            let contigs =
-                epimetheus_io::io::readers::fasta::Reader::read_fasta(Path::new(assembly))?;
+            let contigs_in_df: Vec<String> = pileup_df
+                .0
+                .column("contig")?
+                .unique_stable()?
+                .into_materialized_series()
+                .iter()
+                .map(|v| v.get_str().unwrap_or("").to_string())
+                .collect();
+
+            let contigs = epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                Path::new(assembly),
+                Some(contigs_in_df),
+            )?;
             let motifs = create_motifs(&motifs)?;
 
             let input = MethylationInput::DataFrame(pileup_df.0);

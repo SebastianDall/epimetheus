@@ -453,7 +453,6 @@ fn extract_methylation_pattern_polars(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::*;
 
     #[test]
     fn test_from_pileup() {

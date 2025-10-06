@@ -31,14 +31,27 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    match &args.command {
+    match args.command {
         argparser::Commands::MethylationPattern(methyl_args) => {
             create_output_file(&methyl_args.output)?;
 
             let motifs = create_motifs(&methyl_args.motifs)?;
 
-            let contigs =
-                epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly)?;
+            if methyl_args.contigs.is_some() {
+                methyl_args.validate_filter()?;
+            }
+            let contigs = if let Some(contigs_filter) = &methyl_args.contigs {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                    &methyl_args.assembly,
+                    Some(contigs_filter.clone()),
+                )?
+            } else {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly, None)?
+            };
+
+            if contigs.len() == 0 {
+                bail!("No contigs found in assembly");
+            }
 
             let ext = methyl_args.pileup.extension().and_then(|s| s.to_str());
             let input = if ext == Some("gz") {
