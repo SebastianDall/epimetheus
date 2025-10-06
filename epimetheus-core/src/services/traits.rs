@@ -43,5 +43,8 @@ impl PileupReader for Box<dyn PileupReader> {
 }
 
 pub trait FastaReader {
-    fn read_fasta(path: &Path) -> Result<AHashMap<String, Contig>>;
+    fn read_fasta(
+        path: &Path,
+        contig_filter: Option<Vec<String>>,
+    ) -> Result<AHashMap<String, Contig>>;
 }
