@@ -5,7 +5,10 @@ use anyhow::{Result, bail};
 use clap::ValueEnum;
 use methylome::{ModType, Motif, Strand};
 
-use crate::models::contig::{ContigId, Position as ContigPosition};
+use crate::models::{
+    contig::{ContigId, Position as ContigPosition},
+    pileup::PileupRecord,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct MethylationCoverage {
@@ -14,7 +17,7 @@ pub struct MethylationCoverage {
 }
 
 impl MethylationCoverage {
-    pub fn new(n_modified: u32, n_valid_cov: u32) -> Result<Self> {
+    pub fn new(n_modified: u32, n_valid_cov: u32, n_other_mod: u32) -> Result<Self> {
         if n_modified > n_valid_cov {
             bail!(
                 "Invalid coverage: n_valid_cov ({}) cannot be less than n_modified ({})",
@@ -22,6 +25,8 @@ impl MethylationCoverage {
                 n_modified
             )
         }
+
+        let n_valid_cov = n_valid_cov - n_other_mod;
 
         Ok(Self {
             n_modified,
@@ -42,6 +47,7 @@ impl MethylationCoverage {
     }
 }
 
+#[derive(Clone)]
 pub struct MethylationRecord {
     pub contig: String,
     pub position: usize,
@@ -50,6 +56,21 @@ pub struct MethylationRecord {
     pub methylation: MethylationCoverage,
 }
 
+impl TryFrom<PileupRecord> for MethylationRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(value: PileupRecord) -> std::result::Result<Self, Self::Error> {
+        let meth =
+            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+        Ok(Self {
+            contig: value.contig.clone(),
+            position: value.start as usize,
+            strand: value.strand.clone(),
+            mod_type: value.mod_type.clone(),
+            methylation: meth,
+        })
+    }
+}
 impl MethylationRecord {
     pub fn new(
         contig: String,
@@ -65,6 +86,37 @@ impl MethylationRecord {
             mod_type,
             methylation,
         }
+    }
+
+    pub fn try_from_with_filters(
+        value: PileupRecord,
+        min_valid_read_coverage: u32,
+        min_valid_cov_to_diff_fraction: f32,
+    ) -> Result<Option<Self>> {
+        if value.n_valid_cov < min_valid_read_coverage {
+            return Ok(None);
+        }
+
+        if value.n_other_mod > value.n_modified {
+            return Ok(None);
+        }
+
+        if (value.n_valid_cov as f32 / (value.n_diff as f32 + value.n_valid_cov as f32))
+            < min_valid_cov_to_diff_fraction
+        {
+            return Ok(None);
+        }
+
+        let meth =
+            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+
+        Ok(Some(Self {
+            contig: value.contig.clone(),
+            position: value.start as usize,
+            strand: value.strand.clone(),
+            mod_type: value.mod_type.clone(),
+            methylation: meth,
+        }))
     }
 
     #[allow(dead_code)]
@@ -380,11 +432,11 @@ mod test {
     #[test]
     fn test_methylation_coverage_valid() -> Result<()> {
         // Test valid inputs
-        let coverage = MethylationCoverage::new(5, 10)?;
+        let coverage = MethylationCoverage::new(5, 10, 0)?;
         assert_eq!(coverage.n_modified, 5);
         assert_eq!(coverage.n_valid_cov, 10);
 
-        let coverage = MethylationCoverage::new(0, 0)?;
+        let coverage = MethylationCoverage::new(0, 0, 0)?;
         assert_eq!(coverage.n_modified, 0);
         assert_eq!(coverage.n_valid_cov, 0);
 
@@ -394,7 +446,7 @@ mod test {
     #[test]
     fn test_methylation_coverage_invalid() {
         // Test invalid input: n_valid_cov < n_modified
-        let result = MethylationCoverage::new(10, 5);
+        let result = MethylationCoverage::new(10, 5, 0);
 
         assert!(result.is_err());
         if let Err(e) = result {

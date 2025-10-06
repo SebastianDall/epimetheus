@@ -1,6 +1,6 @@
 [package]
-name = "epimetheus-io"
-version = "0.7.3"
+name = "epimetheus-orchestration"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description.workspace = true
@@ -8,18 +8,14 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-methylome = { path = "../methylome" }
 epimetheus-core = { path = "../epimetheus-core" }
+epimetheus-io = { path = "../epimetheus-io"}
+methylome = { path = "../methylome"}
+indicatif = { version = "*", features = ["rayon"] }
+humantime = {workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
-csv = { workspace = true }
 rayon = { workspace = true }
-noodles-tabix = "0.57.0"
-noodles-csi = "0.51.0"
+polars = { version = "0.51" }
 ahash = "0.8.11"
-seq_io = "0.3.2"
-noodles-bgzf = "0.43.0"
-noodles-core = "0.18.0"
 
-[dev-dependencies]
-tempfile = "3.0"

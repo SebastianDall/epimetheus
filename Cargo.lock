@@ -790,12 +790,14 @@ dependencies = [
 name = "epimetheus"
 version = "0.7.4"
 dependencies = [
+ "ahash",
  "anyhow",
  "clap",
  "criterion",
  "env_logger",
  "epimetheus-core",
  "epimetheus-io",
+ "epimetheus-orchestration",
  "humantime",
  "indicatif",
  "log",
@@ -815,7 +817,6 @@ dependencies = [
  "csv",
  "env_logger",
  "humantime",
- "indicatif",
  "log",
  "methylome",
  "pyo3",
@@ -829,7 +830,6 @@ version = "0.7.3"
 dependencies = [
  "ahash",
  "anyhow",
- "clap",
  "csv",
  "epimetheus-core",
  "log",
@@ -838,16 +838,35 @@ dependencies = [
  "noodles-core",
  "noodles-csi",
  "noodles-tabix",
+ "rayon",
  "seq_io",
  "tempfile",
+]
+
+[[package]]
+name = "epimetheus-orchestration"
+version = "0.7.2"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "epimetheus-core",
+ "epimetheus-io",
+ "humantime",
+ "indicatif",
+ "log",
+ "methylome",
+ "polars",
+ "rayon",
 ]
 
 [[package]]
 name = "epimetheus-py"
 version = "0.7.4"
 dependencies = [
+ "anyhow",
  "epimetheus-core",
  "epimetheus-io",
+ "epimetheus-orchestration",
  "methylome",
  "polars",
  "pyo3",

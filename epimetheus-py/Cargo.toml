@@ -12,9 +12,11 @@ crate-type = ["cdylib"]
 name = "epymetheus"
 
 [dependencies]
+anyhow = {workspace = true}
 pyo3 = { version = "*", features = ["extension-module"]}
 pyo3-polars = "*"
 polars = { version = "0.51" }
 epimetheus-core = { path = "../epimetheus-core", features = ["python"] }
 epimetheus-io = { path = "../epimetheus-io"}
+epimetheus-orchestration = {path = "../epimetheus-orchestration"}
 methylome = { path = "../methylome"}

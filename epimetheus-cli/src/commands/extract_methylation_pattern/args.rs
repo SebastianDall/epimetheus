@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::anyhow;
 use clap::Parser;
 use epimetheus_core::models::methylation::MethylationOutput;
 
@@ -15,6 +16,9 @@ pub struct MethylationPatternArgs {
 
     #[arg(short, long, required = true, help = "Path to assembly.")]
     pub assembly: PathBuf,
+
+    #[arg(long, num_args(1..), help = "Specific contigs to process. Requires that a pileup is a .bed.gz file")]
+    pub contigs: Option<Vec<String>>,
 
     #[arg(
         short,
@@ -65,4 +69,18 @@ pub struct MethylationPatternArgs {
         help = "Specify the type of methylation output type. Raw will give all motif methylations for each contig."
     )]
     pub output_type: MethylationOutput,
+}
+
+impl MethylationPatternArgs {
+    pub fn validate_filter(&self) -> anyhow::Result<()> {
+        if let Some(_contigs) = &self.contigs {
+            if self.pileup.extension().and_then(|s| s.to_str()) != Some("gz") {
+                return Err(anyhow!(
+                    "Pileup must be tabix compressed to use the contig filter."
+                ));
+            }
+        }
+
+        Ok(())
+    }
 }

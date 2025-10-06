@@ -9,7 +9,9 @@ repository.workspace = true
 
 [dependencies]
 clap = {version = "*", features = ["derive"]}
+ahash = "0.8.11"
 epimetheus-core = {path = "../epimetheus-core"}
+epimetheus-orchestration = {path = "../epimetheus-orchestration"}
 epimetheus-io = {path = "../epimetheus-io"}
 rayon = { workspace = true }
 tempfile = { workspace = true }

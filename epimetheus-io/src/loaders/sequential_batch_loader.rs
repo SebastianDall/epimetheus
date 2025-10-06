@@ -1,11 +1,13 @@
 use ahash::AHashMap;
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use epimetheus_core::{
     models::{
         contig::Contig,
         genome_workspace::{GenomeWorkspace, GenomeWorkspaceBuilder},
+        methylation::MethylationRecord,
+        pileup::{PileupRecord, PileupRecordString},
     },
-    services::{domain::pileup_processor::parse_to_methylation_record, traits::BatchLoader},
+    services::traits::BatchLoader,
 };
 use log::{debug, warn};
 use std::{
@@ -13,10 +15,8 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use crate::io::readers::bed::BedReader;
-
 pub struct SequentialBatchLoader<R: BufRead> {
-    reader: BedReader<R>,
+    reader: R,
     assembly: AHashMap<String, Contig>,
     batch_size: usize,
     min_valid_read_coverage: u32,
@@ -25,13 +25,13 @@ pub struct SequentialBatchLoader<R: BufRead> {
 
     current_contig_id: Option<String>,
     current_contig: Option<Contig>,
-    pending_record: Option<Result<csv::StringRecord, csv::Error>>,
+    pending_record: Option<Result<PileupRecordString, anyhow::Error>>,
     contigs_loaded_in_batch: usize,
 }
 
 impl<R: BufRead> SequentialBatchLoader<R> {
     pub fn new(
-        reader: BedReader<R>,
+        reader: R,
         assembly: AHashMap<String, Contig>,
         batch_size: usize,
         min_valid_read_coverage: u32,
@@ -73,7 +73,6 @@ impl BatchLoader<GenomeWorkspace> for SequentialBatchLoader<BufReader<File>> {
         min_valid_cov_to_diff_fraction: f32,
         allow_mismatch: bool,
     ) -> Self {
-        let reader = BedReader::new(reader).unwrap();
         Self::new(
             reader,
             assembly,
@@ -95,18 +94,35 @@ impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
             .pending_record
             .take()
             .into_iter()
-            .chain(self.reader.records());
+            .chain(std::iter::from_fn(|| {
+                let mut line = String::new();
+                match self.reader.read_line(&mut line) {
+                    Ok(0) => None,
+                    Ok(_) => {
+                        let trimmed = line.trim_end().to_string();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(Ok(PileupRecordString::new(trimmed)))
+                        }
+                    }
+                    Err(e) => Some(Err(anyhow::Error::from(e))),
+                }
+            }));
 
         for record_result in record_iter {
-            let record = match record_result.context("Failed to read pileup record") {
+            let record = match record_result {
                 Ok(r) => r,
                 Err(e) => return Some(Err(e)),
             };
 
-            let contig_id = match record.get(0) {
-                Some(id) => id.to_owned(),
-                None => return Some(Err(anyhow!("Missing contig id field"))),
+            let record_for_pending = record.clone();
+            let pileup_record = match PileupRecord::try_from(record) {
+                Ok(p) => p,
+                Err(e) => return Some(Err(e)),
             };
+
+            let contig_id = pileup_record.contig.clone();
 
             if Some(&contig_id) != self.current_contig_id.as_ref() {
                 debug!("Current contig id in line: {}", &contig_id);
@@ -132,7 +148,7 @@ impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
                             );
 
                             if self.contigs_loaded_in_batch == self.batch_size {
-                                self.pending_record = Some(Ok(record));
+                                self.pending_record = Some(Ok(record_for_pending));
                                 self.contigs_loaded_in_batch = 0;
                                 return Some(Ok(builder.build()));
                             }
@@ -154,9 +170,8 @@ impl<R: BufRead> Iterator for SequentialBatchLoader<R> {
                     }
                 }
             }
-            let meth = match parse_to_methylation_record(
-                contig_id,
-                &record,
+            let meth = match MethylationRecord::try_from_with_filters(
+                pileup_record.clone(),
                 self.min_valid_read_coverage,
                 self.min_valid_cov_to_diff_fraction,
             ) {
@@ -224,7 +239,7 @@ mod tests {
             Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BedReader::new(BufReader::new(file))?;
+        let reader = BufReader::new(file);
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
@@ -244,7 +259,7 @@ mod tests {
                     .into_iter()
                     .map(|(_pos, rec)| rec.unwrap().clone())
                     .collect::<Vec<MethylationCoverage>>(),
-                vec![MethylationCoverage::new(15, 15).unwrap()]
+                vec![MethylationCoverage::new(15, 15, 0).unwrap()]
             );
         }
 
@@ -285,7 +300,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BedReader::new(BufReader::new(file))?;
+        let reader = BufReader::new(file);
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 1, 1, 0.8, false);
 
@@ -306,7 +321,7 @@ mod tests {
                         .into_iter()
                         .map(|(_pos, res)| res.unwrap().clone())
                         .collect::<Vec<MethylationCoverage>>(),
-                    vec![MethylationCoverage::new(5, 20).unwrap()]
+                    vec![MethylationCoverage::new(5, 20, 0).unwrap()]
                 );
             }
         }
@@ -342,7 +357,7 @@ mod tests {
 
         let assembly = AHashMap::new();
         let file = File::open(pileup_file).unwrap();
-        let reader = BedReader::new(BufReader::new(file))?;
+        let reader = BufReader::new(file);
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
@@ -387,7 +402,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BedReader::new(BufReader::new(file))?;
+        let reader = BufReader::new(file);
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 2, 1, 0.8, false);
 
@@ -439,7 +454,7 @@ mod tests {
             Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
         );
         let file = File::open(pileup_file).unwrap();
-        let reader = BedReader::new(BufReader::new(file))?;
+        let reader = BufReader::new(file);
 
         let batch_loader = SequentialBatchLoader::new(reader, assembly, 3, 1, 0.8, true);
 

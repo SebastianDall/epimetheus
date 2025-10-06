@@ -7,7 +7,10 @@ use std::path::Path;
 pub struct Reader;
 
 impl FastaReader for Reader {
-    fn read_fasta(path: &Path) -> anyhow::Result<AHashMap<String, Contig>> {
+    fn read_fasta(
+        path: &Path,
+        contig_filter: Option<Vec<String>>,
+    ) -> anyhow::Result<AHashMap<String, Contig>> {
         let mut fasta_reader = FxReader::from_path(&path)
             .with_context(|| format!("Failed to open FASTA at: {:?}", path))?;
 
@@ -20,6 +23,12 @@ impl FastaReader for Reader {
                 .id()
                 .map(String::from)
                 .with_context(|| "Error extracting record ID")?;
+
+            if let Some(ref contig_filter) = contig_filter {
+                if !contig_filter.contains(&id) {
+                    continue;
+                }
+            }
 
             let seq = String::from_utf8(record.owned_seq())
                 .with_context(|| format!("Invalid UTF8 character in FASTA record: '{}'", id))?

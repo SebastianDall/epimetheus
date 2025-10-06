@@ -1,18 +1,16 @@
 use anyhow::{Result, bail};
 use clap::Parser;
-use epimetheus_core::services::application::{
-    methylation_pattern_service::extract_methylation_pattern,
-    motif_clustering_service::motif_clustering,
+use epimetheus_core::services::traits::FastaReader;
+use epimetheus_core::services::{
+    application::motif_clustering_service::motif_clustering, domain::motif_processor::create_motifs,
 };
 
-use epimetheus_io::io::readers::bgzf_bed::Reader as BgzipPileupReader;
-use epimetheus_io::io::readers::fasta::Reader as FastaReader;
 use epimetheus_io::services::compression_service::CompressorService;
-use epimetheus_io::{
-    loaders::sequential_batch_loader::SequentialBatchLoader,
-    services::decompression_service::extract_from_pileup,
-};
+use epimetheus_io::services::decompression_service::extract_from_pileup;
 
+use epimetheus_orchestration::extract_methylation_pattern_service::{
+    MethylationInput, extract_methylation_pattern,
+};
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::{info, warn};
@@ -33,21 +31,43 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    match &args.command {
+    match args.command {
         argparser::Commands::MethylationPattern(methyl_args) => {
             create_output_file(&methyl_args.output)?;
 
-            let meth_pattern = extract_methylation_pattern::<
-                BgzipPileupReader,
-                FastaReader,
-                SequentialBatchLoader<std::io::BufReader<std::fs::File>>,
-            >(
-                &methyl_args.pileup,
-                &methyl_args.assembly,
+            let motifs = create_motifs(&methyl_args.motifs)?;
+
+            if methyl_args.contigs.is_some() {
+                methyl_args.validate_filter()?;
+            }
+            let contigs = if let Some(contigs_filter) = &methyl_args.contigs {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                    &methyl_args.assembly,
+                    Some(contigs_filter.clone()),
+                )?
+            } else {
+                epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly, None)?
+            };
+
+            if contigs.len() == 0 {
+                bail!("No contigs found in assembly");
+            }
+
+            let ext = methyl_args.pileup.extension().and_then(|s| s.to_str());
+            let input = if ext == Some("gz") {
+                MethylationInput::GzFile(methyl_args.pileup.clone())
+            } else if ext == Some("bed") {
+                MethylationInput::BedFile(methyl_args.pileup.clone(), methyl_args.batch_size)
+            } else {
+                bail!("Unsupported file type")
+            };
+
+            let meth_pattern = extract_methylation_pattern(
+                input,
+                contigs,
+                motifs,
                 methyl_args.threads,
-                &methyl_args.motifs,
                 methyl_args.min_valid_read_coverage,
-                methyl_args.batch_size,
                 methyl_args.min_valid_cov_to_diff_fraction,
                 methyl_args.allow_mismatch,
                 &methyl_args.output_type,

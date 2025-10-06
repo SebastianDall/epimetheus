@@ -72,12 +72,12 @@ impl GenomeWorkspace {
 #[cfg(test)]
 mod tests {
     use crate::models::methylation::MethylationCoverage;
-    use crate::services::domain::pileup_processor::parse_to_methylation_record;
+    use crate::models::pileup::{PileupRecord, PileupRecordString};
 
     use super::*;
     use anyhow::Result;
-    use csv::ReaderBuilder;
     use methylome::{ModType, Strand};
+    use std::io::BufRead;
     use std::str::FromStr;
     use std::{
         fs::File,
@@ -134,21 +134,12 @@ mod tests {
         // Populate methylation data
         let file = File::open(pileup_file)?;
         let reader = BufReader::new(file);
-        let mut rdr = ReaderBuilder::new()
-            .has_headers(false)
-            .delimiter(b'\t')
-            .from_reader(reader);
 
-        for res in rdr.records() {
-            let record = res?;
+        for res in reader.lines() {
+            let record = res.unwrap();
+            let pileup_record = PileupRecord::try_from(PileupRecordString::new(record)).unwrap();
+            let meth_record = MethylationRecord::try_from_with_filters(pileup_record, 3, 0.8);
 
-            // let n_valid_cov_str = record.get(9).unwrap();
-            // let n_valid_cov = n_valid_cov_str.parse::<u32>().unwrap();
-
-            // if n_valid_cov < 3 {
-            //     continue;
-            // }
-            let meth_record = parse_to_methylation_record("contig_3".to_string(), &record, 3, 0.8);
             let meth = match meth_record {
                 Ok(Some(m)) => m,
                 Ok(None) => continue,
@@ -170,7 +161,7 @@ mod tests {
             .methylated_positions
             .get(&(0, Strand::Negative, ModType::FiveMC));
 
-        let expected_methylation = MethylationCoverage::new(10, 133).unwrap();
+        let expected_methylation = MethylationCoverage::new(10, 133, 0).unwrap();
 
         assert!(pos_0.is_some());
         assert_eq!(pos_0, Some(&expected_methylation));
@@ -178,7 +169,7 @@ mod tests {
         let pos_1 = contig
             .methylated_positions
             .get(&(1, Strand::Positive, ModType::SixMA));
-        let expected_methylation = MethylationCoverage::new(5, 174).unwrap();
+        let expected_methylation = MethylationCoverage::new(5, 174, 0).unwrap();
         assert!(pos_1.is_some());
         assert_eq!(pos_1, Some(&expected_methylation));
 
@@ -205,17 +196,15 @@ mod tests {
         // Populate methylation data
         let file = File::open(pileup_file.path()).unwrap();
         let reader = BufReader::new(file);
-        let mut rdr = ReaderBuilder::new()
-            .has_headers(false)
-            .delimiter(b'\t')
-            .from_reader(reader);
 
-        for res in rdr.records() {
+        for res in reader.lines() {
             let record = res.unwrap();
+            let pileup_record = PileupRecord::try_from(PileupRecordString::new(record)).unwrap();
+            let meth_record = MethylationRecord::try_from_with_filters(pileup_record, 3, 0.8)
+                .unwrap()
+                .unwrap();
 
-            let meth_record =
-                parse_to_methylation_record("contig_1".to_string(), &record, 3, 0.8).unwrap();
-            let result = workspace_builder.add_record(meth_record.unwrap());
+            let result = workspace_builder.add_record(meth_record);
             assert!(result.is_err());
         }
     }
