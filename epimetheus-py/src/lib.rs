@@ -146,7 +146,7 @@ fn create_methylation_pattern_df(
 ///     output_type (MethylationOutput): Output format type
 ///
 /// Returns:
-///     None
+///     polars.DataFrame: DataFrame containing methylation pattern results
 ///
 /// Raises:
 ///     PyRuntimeError: If processing fails due to IO errors or data format issues
