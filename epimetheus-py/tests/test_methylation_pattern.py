@@ -24,14 +24,9 @@ def test_methylation_pattern_median(data_dir, tmp_path):
     epymetheus.methylation_pattern(
         pileup,
         assembly,
-        None,
-        str(outfile),
-        1,
         motifs = ["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],
-        batch_size=1000,
-        min_valid_read_coverage=3,
-        min_valid_cov_to_diff_fraction=0.8,
-        allow_assembly_pileup_mismatch=False,
+        output = str(outfile),
+        threads = 1,
         output_type=MethylationOutput.Median
     )
 
@@ -51,14 +46,9 @@ def test_methylation_pattern_weighted_mean(data_dir, tmp_path):
     epymetheus.methylation_pattern(
         pileup,
         assembly,
-        None,
-        str(outfile),
-        1,
+        output=str(outfile),
+        threads = 1,
         motifs = ["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],
-        batch_size=1000,
-        min_valid_read_coverage=3,
-        min_valid_cov_to_diff_fraction=0.8,
-        allow_assembly_pileup_mismatch=False,
         output_type=MethylationOutput.WeightedMean
     )
 
@@ -81,8 +71,8 @@ def test_methylation_pattern_weighted_mean_from_df(data_dir, tmp_path):
     result = epymetheus.methylation_pattern_from_dataframe(
         df,
         assembly,
-        1,
         motifs = motifs,
+        threads = 1,
         min_valid_read_coverage=3,
         min_valid_cov_to_diff_fraction=0.8,
         output_type=MethylationOutput.WeightedMean

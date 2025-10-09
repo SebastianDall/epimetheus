@@ -11,6 +11,7 @@
 
 use epimetheus_core::models::methylation::MethylationOutput;
 use epimetheus_core::models::methylation::MethylationPatternVariant;
+use epimetheus_core::models::pileup::PileupColumn;
 use epimetheus_core::services::domain::motif_processor::create_motifs;
 use epimetheus_core::services::traits::FastaReader;
 use epimetheus_core::services::traits::PileupReader;
@@ -151,26 +152,35 @@ fn create_methylation_pattern_df(
 /// Raises:
 ///     PyRuntimeError: If processing fails due to IO errors or data format issues
 #[pyfunction]
+#[pyo3(signature = (
+    pileup,
+    assembly,
+    motifs,
+    output_type,
+    contigs=None,
+    output=None,
+    threads = 1,
+    min_valid_read_coverage = 3,
+    batch_size=100,
+    min_valid_cov_to_diff_fraction = 0.8,
+    allow_assembly_pileup_mismatch = false,
+    
+))]
 fn methylation_pattern(
     pileup: &str,
     assembly: &str,
+    motifs: Vec<String>,
+    output_type: MethylationOutput,
     contigs: Option<Vec<String>>,
     output: Option<&str>,
     threads: usize,
-    motifs: Vec<String>,
     min_valid_read_coverage: u32,
-    batch_size: Option<usize>,
+    batch_size: usize,
     min_valid_cov_to_diff_fraction: f32,
     allow_assembly_pileup_mismatch: bool,
-    output_type: MethylationOutput,
 ) -> PyResult<PyDataFrame> {
     Python::with_gil(|py| {
         py.allow_threads(|| {
-            let batch_size = if let Some(batch_size) = batch_size {
-                batch_size
-            } else {
-                100
-            };
 
             let contigs = if let Some(contigs_filter) = contigs {
                 epimetheus_io::io::readers::fasta::Reader::read_fasta(
@@ -243,6 +253,8 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 /// Args:
 ///     pileup_path (str): Path to the pileup file (BED format, can be gzipped)
 ///     contigs (List[str]): List of contig names to query
+///     columns (List[PileupColumn] | None): List of column names to filter by to reduce memory
+///
 ///
 /// Returns:
 ///     polars.DataFrame: DataFrame containing pileup record data with columns:
@@ -269,34 +281,46 @@ fn remove_child_motifs(output: &str, motifs: Vec<String>) -> PyResult<()> {
 ///     PyIOError: If the pileup file cannot be read
 ///     PyRuntimeError: If querying fails due to data processing issues
 #[pyfunction]
-fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyDataFrame> {
+#[pyo3(signature = (pileup_path, contigs, columns=None))]
+fn query_pileup_records(
+    pileup_path: &str,
+    contigs: Vec<String>,
+    columns: Option<Vec<PileupColumn>>,
+) -> PyResult<PyDataFrame> {
+    let cols = if let Some(cols) = columns {
+        cols.iter().map(PileupColumn::to_string).collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
     let mut reader =
         epimetheus_io::io::readers::bgzf_bed::Reader::from_path(Path::new(pileup_path))
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-    // Pre-allocate vectors for columns
-    let mut contig_vec = Vec::new();
-    let mut start_vec = Vec::new();
-    let mut end_vec = Vec::new();
-    let mut mod_type_vec = Vec::new();
-    let mut score_vec = Vec::new();
-    let mut strand_vec = Vec::new();
-    let mut start_pos_vec = Vec::new();
-    let mut end_pos_vec = Vec::new();
-    let mut color_vec = Vec::new();
-    let mut n_valid_cov_vec = Vec::new();
-    let mut fraction_modified_vec = Vec::new();
-    let mut n_modified_vec = Vec::new();
-    let mut n_canonical_vec = Vec::new();
-    let mut n_other_mod_vec = Vec::new();
-    let mut n_delete_vec = Vec::new();
-    let mut n_fail_vec = Vec::new();
-    let mut n_diff_vec = Vec::new();
-    let mut n_no_call_vec = Vec::new();
-
+    let mut df = None;
     for contig in contigs {
         let records = query_pileup(&mut reader, &[contig])
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        // Pre-allocate vectors for columns
+        let mut contig_vec = Vec::new();
+        let mut start_vec = Vec::new();
+        let mut end_vec = Vec::new();
+        let mut mod_type_vec = Vec::new();
+        let mut score_vec = Vec::new();
+        let mut strand_vec = Vec::new();
+        let mut start_pos_vec = Vec::new();
+        let mut end_pos_vec = Vec::new();
+        let mut color_vec = Vec::new();
+        let mut n_valid_cov_vec = Vec::new();
+        let mut fraction_modified_vec = Vec::new();
+        let mut n_modified_vec = Vec::new();
+        let mut n_canonical_vec = Vec::new();
+        let mut n_other_mod_vec = Vec::new();
+        let mut n_delete_vec = Vec::new();
+        let mut n_fail_vec = Vec::new();
+        let mut n_diff_vec = Vec::new();
+        let mut n_no_call_vec = Vec::new();
 
         for record in records {
             contig_vec.push(record.contig);
@@ -318,30 +342,43 @@ fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyD
             n_diff_vec.push(record.n_diff);
             n_no_call_vec.push(record.n_no_call);
         }
+
+        let mut df_tmp = df! [
+            "contig" => contig_vec,
+            "start" => start_vec,
+            "end" => end_vec,
+            "mod_type" => mod_type_vec,
+            "score" => score_vec,
+            "strand" => strand_vec,
+            "start_pos" => start_pos_vec,
+            "end_pos" => end_pos_vec,
+            "color" => color_vec,
+            "n_valid_cov" => n_valid_cov_vec,
+            "fraction_modified" => fraction_modified_vec,
+            "n_modified" => n_modified_vec,
+            "n_canonical" => n_canonical_vec,
+            "n_other_mod" => n_other_mod_vec,
+            "n_delete" => n_delete_vec,
+            "n_fail" => n_fail_vec,
+            "n_diff" => n_diff_vec,
+            "n_no_call" => n_no_call_vec,
+        ]
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        if cols.len() > 0 {
+            df_tmp = df_tmp.select(cols.clone()).unwrap();
+        }
+        match &mut df {
+            None => df = Some(df_tmp),
+            Some(df_ref) => {
+                df_ref
+                    .vstack_mut(&df_tmp)
+                    .map_err(|e| pyo3::exceptions::PyRecursionError::new_err(e.to_string()))?;
+            }
+        }
     }
 
-    // Create DataFrame from columns
-    let df = df! [
-        "contig" => contig_vec,
-        "start" => start_vec,
-        "end" => end_vec,
-        "mod_type" => mod_type_vec,
-        "score" => score_vec,
-        "strand" => strand_vec,
-        "start_pos" => start_pos_vec,
-        "end_pos" => end_pos_vec,
-        "color" => color_vec,
-        "n_valid_cov" => n_valid_cov_vec,
-        "fraction_modified" => fraction_modified_vec,
-        "n_modified" => n_modified_vec,
-        "n_canonical" => n_canonical_vec,
-        "n_other_mod" => n_other_mod_vec,
-        "n_delete" => n_delete_vec,
-        "n_fail" => n_fail_vec,
-        "n_diff" => n_diff_vec,
-        "n_no_call" => n_no_call_vec,
-    ]
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    let df = df.unwrap_or_else(|| DataFrame::empty());
 
     Ok(PyDataFrame(df))
 }
@@ -364,6 +401,12 @@ fn query_pileup_records(pileup_path: &str, contigs: Vec<String>) -> PyResult<PyD
 /// Raises:
 ///     PyRuntimeError: If compression fails due to IO errors or file access issues
 #[pyfunction]
+#[pyo3(signature = (
+    input,
+    output = None,
+    keep = false,
+    force = false
+))]
 fn bgzf_pileup(input: &str, output: Option<&str>, keep: bool, force: bool) -> PyResult<()> {
     let input_path = Path::new(input);
     let input_file = File::open(input_path)
@@ -494,14 +537,23 @@ impl BgzfWriter {
 /// Raises:
 ///     PyRuntimeError: If processing fails due to data format or processing issues
 #[pyfunction]
+#[pyo3(signature = (
+    pileup_df,
+    assembly,
+    motifs,
+    output_type,
+    threads,
+    min_valid_read_coverage = 5,
+    min_valid_cov_to_diff_fraction = 0.8,
+))]
 fn methylation_pattern_from_dataframe(
     pileup_df: PyDataFrame,
     assembly: &str,
-    threads: usize,
     motifs: Vec<String>,
+    output_type: MethylationOutput,
+    threads: usize,
     min_valid_read_coverage: u32,
     min_valid_cov_to_diff_fraction: f32,
-    output_type: MethylationOutput,
 ) -> PyResult<PyDataFrame> {
     Python::with_gil(|py| {
         py.allow_threads(|| -> anyhow::Result<DataFrame> {
@@ -551,6 +603,7 @@ fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
     // m.add_function(wrap_pyfunction!(bgzf_pileup_from_lines, m)?)?;
     m.add_class::<MethylationOutput>()?;
+    m.add_class::<PileupColumn>()?;
     m.add_class::<BgzfWriter>()?;
     Ok(())
 }
