@@ -1,5 +1,6 @@
+use anyhow::anyhow;
 use methylome::{ModType, Strand};
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use crate::models::methylation::{MethylationCoverage, MethylationRecord};
 
@@ -19,6 +20,85 @@ pub struct PileupRecordString(pub String);
 impl PileupRecordString {
     pub fn new(_0: String) -> Self {
         Self(_0)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", pyo3::pyclass)]
+pub enum PileupColumn {
+    Contig,
+    Start,
+    End,
+    ModType,
+    Score,
+    Strand,
+    StartPos,
+    EndPos,
+    Color,
+    NValidCov,
+    FractionModified,
+    NModified,
+    NCanonical,
+    NOtherMod,
+    NDelete,
+    NFail,
+    NDiff,
+    NNoCall,
+}
+
+impl FromStr for PileupColumn {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "contig" => Ok(PileupColumn::Contig),
+            "start" => Ok(PileupColumn::Start),
+            "end" => Ok(PileupColumn::End),
+            "mod_type" => Ok(PileupColumn::ModType),
+            "score" => Ok(PileupColumn::Score),
+            "strand" => Ok(PileupColumn::Strand),
+            "start_pos" => Ok(PileupColumn::StartPos),
+            "end_pos" => Ok(PileupColumn::EndPos),
+            "color" => Ok(PileupColumn::Color),
+            "n_valid_cov" => Ok(PileupColumn::NValidCov),
+            "fraction_modified" => Ok(PileupColumn::FractionModified),
+            "n_modified" => Ok(PileupColumn::NModified),
+            "n_canonical" => Ok(PileupColumn::NCanonical),
+            "n_other_mod" => Ok(PileupColumn::NOtherMod),
+            "n_delete" => Ok(PileupColumn::NDelete),
+            "n_fail" => Ok(PileupColumn::NFail),
+            "n_diff" => Ok(PileupColumn::NDiff),
+            "n_no_call" => Ok(PileupColumn::NNoCall),
+            _ => Err(anyhow!(
+                "Could not convert '{}' to pileup column",
+                s.to_string()
+            )),
+        }
+    }
+}
+
+impl ToString for PileupColumn {
+    fn to_string(&self) -> String {
+        match self {
+            PileupColumn::Contig => "contig".to_string(),
+            PileupColumn::Start => "start".to_string(),
+            PileupColumn::End => "end".to_string(),
+            PileupColumn::ModType => "mod_type".to_string(),
+            PileupColumn::Score => "score".to_string(),
+            PileupColumn::Strand => "strand".to_string(),
+            PileupColumn::StartPos => "start_pos".to_string(),
+            PileupColumn::EndPos => "end_pos".to_string(),
+            PileupColumn::Color => "color".to_string(),
+            PileupColumn::NValidCov => "n_valid_cov".to_string(),
+            PileupColumn::FractionModified => "fraction_modified".to_string(),
+            PileupColumn::NModified => "n_modified".to_string(),
+            PileupColumn::NCanonical => "n_canonical".to_string(),
+            PileupColumn::NOtherMod => "n_other_mod".to_string(),
+            PileupColumn::NDelete => "n_delete".to_string(),
+            PileupColumn::NFail => "n_fail".to_string(),
+            PileupColumn::NDiff => "n_diff".to_string(),
+            PileupColumn::NNoCall => "n_no_call".to_string(),
+        }
     }
 }
 
