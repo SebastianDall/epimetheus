@@ -1,3 +1,5 @@
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/epimetheus-py/README.html)
+![PyPI - Version](https://img.shields.io/pypi/v/epimetheus-py)
 # epimetheus
 `epimetheus` is a CLI tool for converting a pileup file ([modkit](https://github.com/nanoporetech/modkit)), where reads with modification calls are mapped to an assembly, to motif methylation instead.
 
