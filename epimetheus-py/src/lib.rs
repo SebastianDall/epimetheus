@@ -368,8 +368,6 @@ fn query_pileup_records(
         if cols.len() > 0 {
             df_tmp = df_tmp.select(cols.clone()).unwrap();
         }
-        println!("{:?}", df_tmp);
-
         match &mut df {
             None => df = Some(df_tmp),
             Some(df_ref) => {
