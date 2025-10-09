@@ -1,6 +1,6 @@
 [package]
 name = "epimetheus-io"
-version = "0.7.3"
+version = "0.7.5"
 edition.workspace = true
 authors.workspace = true
 description.workspace = true
