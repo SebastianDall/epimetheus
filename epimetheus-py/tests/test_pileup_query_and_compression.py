@@ -3,7 +3,7 @@ import tempfile
 import pytest
 import polars as pl
 from pathlib import Path
-from epymetheus import epymetheus
+from epymetheus.epymetheus import *
 
 @pytest.fixture
 def data_dir():
@@ -17,7 +17,7 @@ def test_bgzf_compression_and_query(data_dir, tmp_path):
     # Output files in temp directory
     compressed_file = tmp_path / "test_output.bed.gz"
     # Step 1: Compress the pileup file
-    epymetheus.bgzf_pileup(
+    bgzf_pileup(
         pileup_input,
         str(compressed_file),
         keep=True,   # Keep original file
@@ -27,7 +27,7 @@ def test_bgzf_compression_and_query(data_dir, tmp_path):
     assert compressed_file.exists(), "Compressed file should be created"
     assert Path(f"{compressed_file}.tbi").exists(), "Index file should be created"
     # Step 2: Query for existing contig (should pass)
-    records_contig3 = epymetheus.query_pileup_records(
+    records_contig3 = query_pileup_records(
         str(compressed_file),
         ["contig_3"]
     )
@@ -45,7 +45,7 @@ def test_query_data(data_dir, tmp_path):
     """Test querying multiple contigs and the data"""
     pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
 
-    df = epymetheus.query_pileup_records(pileup_input, contigs=["contig_2","contig_3"])
+    df = query_pileup_records(pileup_input, contigs=["contig_2","contig_3"])
 
     assert df.columns == [
         "contig",
@@ -71,6 +71,22 @@ def test_query_data(data_dir, tmp_path):
     assert len(df.filter(pl.col("contig") == "contig_3")) > 0, "No records matched contig_3"
     assert len(df.filter(pl.col("contig") == "contig_2")) > 0, "No records matched contig_2"
     assert len(df.filter(pl.col("contig") == "contig_10")) == 0, "Records matched contig_10 contig 10 should not be present"
+
+def test_query_with_col_filter(data_dir, tmp_path):
+    """Test querying multiple contigs and the data"""
+    pileup_input = os.path.join(data_dir, "geobacillus.bed.gz")
+
+    df = query_pileup_records(pileup_input, contigs=["contig_2","contig_3"], columns = [PileupColumn.Contig, PileupColumn.Start, PileupColumn.Score])
+
+    assert df.columns == [
+        "contig",
+        "start",
+        "score",
+    ], "Colums do not match"
+
+    assert len(df.filter(pl.col("contig") == "contig_3")) > 0, "No records matched contig_3"
+    assert len(df.filter(pl.col("contig") == "contig_2")) > 0, "No records matched contig_2"
+    assert len(df.filter(pl.col("contig") == "contig_10")) == 0, "Records matched contig_10 contig 10 should not be present"
     
 
 
@@ -84,9 +100,8 @@ def test_bgzf_compression_with_auto_output(data_dir, tmp_path):
     with open(pileup_input, 'r') as src, open(temp_input, 'w') as dst:
         dst.write(src.read())
     # Compress with auto output (None)
-    epymetheus.bgzf_pileup(
+    bgzf_pileup(
         str(temp_input),
-        None,        # Auto-generate output name
         keep=True,   # Keep original
         force=False
     )
@@ -100,11 +115,11 @@ def test_bgzf_force_overwrite(data_dir, tmp_path):
     pileup_input = os.path.join(data_dir, "geobacillus-plasmids.pileup.bed")
     output_file = tmp_path / "test.bed.gz"
     # Create first compression
-    epymetheus.bgzf_pileup(str(pileup_input), str(output_file), True, False)
+    bgzf_pileup(str(pileup_input), str(output_file), True, False)
     assert output_file.exists()
     original_size = output_file.stat().st_size
     # Try to compress again with force=True (should succeed)
-    epymetheus.bgzf_pileup(str(pileup_input), str(output_file), True, True)
+    bgzf_pileup(str(pileup_input), str(output_file), True, True)
     assert output_file.exists()
     # File should still exist and have similar size
     new_size = output_file.stat().st_size
@@ -117,14 +132,14 @@ def test_bgzf_compression_from_lines(data_dir, tmp_path):
     # Verify input file exists
     assert os.path.exists(pileup_input), f"Input file not found: {pileup_input}"
 
-    writer = epymetheus.BgzfWriter(str(temp_output), force=True)
+    writer = BgzfWriter(str(temp_output), force=True)
 
     original_record_counts = {}
     processed_record_counts = {}
 
     try:
         for c in ["contig_2", "contig_3"]:
-            records = epymetheus.query_pileup_records(pileup_input, [c])
+            records = query_pileup_records(pileup_input, [c], None)
             assert len(records) > 0, f"No records found for contig {c} in input file"
 
             required_columns = ["contig","start","end","mod_type","score","strand","start_pos","end_pos","color","n_valid_cov","fraction_modified","n_modified","n_canonical","n_other_mod","n_delete","n_fail","n_diff","n_no_call"]
@@ -152,7 +167,7 @@ def test_bgzf_compression_from_lines(data_dir, tmp_path):
 
         # Verify transformed data
         expected_contigs = ["contig_4", "contig_5"]
-        contigs_in_output = epymetheus.query_pileup_records(str(temp_output), expected_contigs)
+        contigs_in_output = query_pileup_records(str(temp_output), expected_contigs, None)
         
         assert contigs_in_output.shape[0] > 0, "No records found in compressed output"
         
