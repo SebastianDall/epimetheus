@@ -864,9 +864,11 @@ name = "epimetheus-py"
 version = "0.7.5"
 dependencies = [
  "anyhow",
+ "env_logger",
  "epimetheus-core",
  "epimetheus-io",
  "epimetheus-orchestration",
+ "log",
  "methylome",
  "polars",
  "pyo3",
