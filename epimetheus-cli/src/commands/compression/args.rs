@@ -28,7 +28,7 @@ pub struct BgzipWriterArgs {
         short,
         long,
         required = false,
-        help = "Path to output pileup file [.bed.gz]. If not provided the compression will outputted to stdout and not tabix will be created."
+        help = "Path to output pileup file [.bed.gz]. If not provided and '--stdout' not set the output file will be input.bed.gz."
     )]
     pub output: Option<PathBuf>,
 
