@@ -100,8 +100,8 @@ fn main() -> Result<()> {
                 }
 
                 let output = compress_args.set_output()?;
-                if let Some(out_path) = output {
-                    info!("Writing to: {}", &outpath);
+                if let Some(ref out_path) = output {
+                    info!("Writing to: {}", &out_path.display());
                 } else {
                     info!("Writing to stdout");
                 }
