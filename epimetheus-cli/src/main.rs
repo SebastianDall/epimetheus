@@ -41,11 +41,13 @@ fn main() -> Result<()> {
                 methyl_args.validate_filter()?;
             }
             let contigs = if let Some(contigs_filter) = &methyl_args.contigs {
+                info!("Loading assembly - specified contigs provided");
                 epimetheus_io::io::readers::fasta::Reader::read_fasta(
                     &methyl_args.assembly,
                     Some(contigs_filter.clone()),
                 )?
             } else {
+                info!("Loading assembly");
                 epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly, None)?
             };
 
@@ -62,6 +64,7 @@ fn main() -> Result<()> {
                 bail!("Unsupported file type")
             };
 
+            info!("Finding methylation");
             let meth_pattern = extract_methylation_pattern(
                 input,
                 contigs,
@@ -73,6 +76,7 @@ fn main() -> Result<()> {
                 &methyl_args.output_type,
             )?;
 
+            info!("Writing output to: {}", &methyl_args.output.display());
             meth_pattern.write_output(&methyl_args.output)?;
         }
         argparser::Commands::MotifCluster(motif_cluster_args) => {
