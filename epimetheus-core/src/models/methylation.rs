@@ -5,6 +5,9 @@ use anyhow::{Result, bail};
 use clap::ValueEnum;
 use methylome::{ModType, Motif, Strand};
 
+#[cfg(feature = "python")]
+use pyo3::{IntoPyObject, types::PyAnyMethods};
+
 use crate::models::{
     contig::{ContigId, Position as ContigPosition},
     pileup::PileupRecord,
@@ -324,7 +327,7 @@ impl MotifMethylationPositions {
 }
 
 #[derive(Debug, Clone, ValueEnum)]
-#[cfg_attr(feature = "python", pyo3::pyclass)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "epymetheus"))]
 pub enum MethylationOutput {
     Raw,
     Median,
@@ -351,6 +354,41 @@ impl FromStr for MethylationOutput {
             "weighted_mean" => Ok(Self::WeightedMean),
             _ => Err(format!("Invalid output type: {}", s)),
         }
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl MethylationOutput {
+    fn __reduce__(&self) -> pyo3::PyResult<(pyo3::PyObject, (String,))> {
+        pyo3::Python::with_gil(|py| {
+            let state = match self {
+                MethylationOutput::Median => "Median".to_string(),
+                MethylationOutput::WeightedMean => "WeightedMean".to_string(),
+                MethylationOutput::Raw => "Raw".to_string(),
+            };
+            let constructor = py.get_type::<MethylationOutput>().getattr("_from_state")?;
+            Ok((constructor.into_pyobject(py)?.unbind(), (state,)))
+        })
+    }
+
+    #[classmethod]
+    fn _from_state(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        state: String,
+    ) -> pyo3::PyResult<MethylationOutput> {
+        match state.as_str() {
+            "Median" => Ok(MethylationOutput::Median),
+            "WeightedMean" => Ok(MethylationOutput::WeightedMean),
+            "Raw" => Ok(MethylationOutput::Raw),
+            _ => Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Invalid state",
+            )),
+        }
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
     }
 }
 
