@@ -324,7 +324,7 @@ impl MotifMethylationPositions {
 }
 
 #[derive(Debug, Clone, ValueEnum)]
-#[cfg_attr(feature = "python", pyo3::pyclass)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "epymetheus"))]
 pub enum MethylationOutput {
     Raw,
     Median,
@@ -351,6 +351,31 @@ impl FromStr for MethylationOutput {
             "weighted_mean" => Ok(Self::WeightedMean),
             _ => Err(format!("Invalid output type: {}", s)),
         }
+    }
+}
+
+#[pyo3::pymethods]
+impl MethylationOutput {
+    fn __getstate__(&self) -> pyo3::PyResult<String> {
+        match self {
+            MethylationOutput::Median => Ok("Median".to_string()),
+            MethylationOutput::WeightedMean => Ok("WeightedMean".to_string()),
+            MethylationOutput::Raw => Ok("Raw".to_string()),
+        }
+    }
+
+    fn __setstate__(&mut self, state: String) -> pyo3::PyResult<()> {
+        *self = match state.as_str() {
+            "Median" => MethylationOutput::Median,
+            "WeightedMean" => MethylationOutput::WeightedMean,
+            "Raw" => MethylationOutput::Raw,
+            _ => {
+                return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Invalid state",
+                ));
+            }
+        };
+        Ok(())
     }
 }
 
