@@ -4,6 +4,7 @@ use ahash::AHashMap;
 use anyhow::{Result, bail};
 use clap::ValueEnum;
 use methylome::{ModType, Motif, Strand};
+use pyo3::{IntoPyObject, types::PyAnyMethods};
 
 use crate::models::{
     contig::{ContigId, Position as ContigPosition},
@@ -356,26 +357,35 @@ impl FromStr for MethylationOutput {
 
 #[pyo3::pymethods]
 impl MethylationOutput {
-    fn __getstate__(&self) -> pyo3::PyResult<String> {
-        match self {
-            MethylationOutput::Median => Ok("Median".to_string()),
-            MethylationOutput::WeightedMean => Ok("WeightedMean".to_string()),
-            MethylationOutput::Raw => Ok("Raw".to_string()),
+    fn __reduce__(&self) -> pyo3::PyResult<(pyo3::PyObject, (String,))> {
+        pyo3::Python::with_gil(|py| {
+            let state = match self {
+                MethylationOutput::Median => "Median".to_string(),
+                MethylationOutput::WeightedMean => "WeightedMean".to_string(),
+                MethylationOutput::Raw => "Raw".to_string(),
+            };
+            let constructor = py.get_type::<MethylationOutput>().getattr("_from_state")?;
+            Ok((constructor.into_pyobject(py)?.unbind(), (state,)))
+        })
+    }
+
+    #[classmethod]
+    fn _from_state(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        state: String,
+    ) -> pyo3::PyResult<MethylationOutput> {
+        match state.as_str() {
+            "Median" => Ok(MethylationOutput::Median),
+            "WeightedMean" => Ok(MethylationOutput::WeightedMean),
+            "Raw" => Ok(MethylationOutput::Raw),
+            _ => Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Invalid state",
+            )),
         }
     }
 
-    fn __setstate__(&mut self, state: String) -> pyo3::PyResult<()> {
-        *self = match state.as_str() {
-            "Median" => MethylationOutput::Median,
-            "WeightedMean" => MethylationOutput::WeightedMean,
-            "Raw" => MethylationOutput::Raw,
-            _ => {
-                return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Invalid state",
-                ));
-            }
-        };
-        Ok(())
+    fn __eq__(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
     }
 }
 

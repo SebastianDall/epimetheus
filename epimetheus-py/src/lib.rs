@@ -21,7 +21,6 @@ use epimetheus_io::services::compression_service::CompressorService;
 use epimetheus_io::services::file_processing_service::query_pileup;
 use epimetheus_orchestration::extract_methylation_pattern_service::MethylationInput;
 use epimetheus_orchestration::extract_methylation_pattern_service::extract_methylation_pattern;
-use log::info;
 use polars::prelude::*;
 use pyo3::prelude::*;
 use pyo3_polars::PyDataFrame;
