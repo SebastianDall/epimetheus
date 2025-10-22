@@ -4,6 +4,8 @@ use ahash::AHashMap;
 use anyhow::{Result, bail};
 use clap::ValueEnum;
 use methylome::{ModType, Motif, Strand};
+
+#[cfg(feature = "python")]
 use pyo3::{IntoPyObject, types::PyAnyMethods};
 
 use crate::models::{
@@ -355,6 +357,7 @@ impl FromStr for MethylationOutput {
     }
 }
 
+#[cfg(feature = "python")]
 #[pyo3::pymethods]
 impl MethylationOutput {
     fn __reduce__(&self) -> pyo3::PyResult<(pyo3::PyObject, (String,))> {
