@@ -1,5 +1,5 @@
-use crate::{IupacBase, ModType};
-use anyhow::{bail, Result};
+use crate::{IupacBase, ModType, sequence::Sequence};
+use anyhow::{Result, bail};
 use std::str::FromStr;
 
 pub type Position = u8;
@@ -13,7 +13,7 @@ pub type Position = u8;
 /// - `mod_position`: The position of the modification within the sequence (0-indexed).
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Motif {
-    pub sequence: Vec<IupacBase>,
+    pub sequence: Sequence,
     pub mod_type: ModType,
     pub mod_position: Position,
 }
@@ -39,21 +39,10 @@ impl Motif {
     /// let motif = Motif::new("GATC", "a", 1).unwrap();
     /// assert_eq!(motif.mod_type, ModType::SixMA);
     /// ```
-    pub fn new(sequence: &str, mod_type: &str, mod_position: u8) -> Result<Self> {
+    pub fn new(sequence_str: &str, mod_type: &str, mod_position: u8) -> Result<Self> {
         let mod_type = ModType::from_str(mod_type)?;
 
-        let parsed_sequence = sequence
-            .chars()
-            .map(|b| {
-                IupacBase::parse_char(b).map_err(|_| {
-                    anyhow::anyhow!(
-                        "Base '{}' in sequence '{}' is not a valid IUPAC code",
-                        b,
-                        sequence
-                    )
-                })
-            })
-            .collect::<Result<Vec<IupacBase>>>()?;
+        let parsed_sequence = Sequence::from_str(sequence_str)?;
 
         if mod_position as usize > parsed_sequence.len() - 1 {
             bail!(
@@ -78,7 +67,9 @@ impl Motif {
                 if *base_at_position != IupacBase::C {
                     bail!(
                         "mod_position {} points to base '{}' which is invalid for {} modification type.",
-                        mod_position, base_at_position, mod_type
+                        mod_position,
+                        base_at_position,
+                        mod_type
                     );
                 }
             }
@@ -89,7 +80,7 @@ impl Motif {
         {
             bail!(
                 "Motif sequence starts or ends with N, which is invalid: {}",
-                sequence
+                sequence_str
             );
         }
 
@@ -201,7 +192,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{IupacBase, find_motif_indices_in_contig, Motif};
+    /// use methylome::{IupacBase, Motif};
     ///
     /// let parent = Motif::new("GATC", "a", 1).unwrap();
     /// let child = Motif::new("RGATCY", "a", 2).unwrap();
@@ -278,17 +269,10 @@ impl Motif {
 mod tests {
     use super::*;
 
-    fn parse_iupac_sequence(sequence: &str) -> Vec<IupacBase> {
-        sequence
-            .chars()
-            .map(|c| IupacBase::parse_char(c).unwrap())
-            .collect()
-    }
-
     #[test]
     fn test_motif_creation() {
         let motif = Motif::new("GATC", "a", 1).unwrap();
-        assert_eq!(motif.sequence, parse_iupac_sequence("GATC"));
+        assert_eq!(motif.sequence, Sequence::from_str("GATC").unwrap());
         assert_eq!(motif.mod_type, ModType::SixMA);
         assert_eq!(motif.mod_position, 1);
     }
@@ -356,15 +340,15 @@ mod tests {
         let motif3 = Motif::new("RGATCY", "a", 2).unwrap();
         assert_eq!(
             motif1.reverse_complement().sequence,
-            parse_iupac_sequence("GATC")
+            Sequence::from_str("GATC").unwrap()
         );
         assert_eq!(
             motif2.reverse_complement().sequence,
-            parse_iupac_sequence("CGGGA")
+            Sequence::from_str("CGGGA").unwrap()
         );
         assert_eq!(
             motif3.reverse_complement().sequence,
-            parse_iupac_sequence("RGATCY")
+            Sequence::from_str("RGATCY").unwrap()
         );
         assert_eq!(
             motif1.reverse_complement().mod_type,

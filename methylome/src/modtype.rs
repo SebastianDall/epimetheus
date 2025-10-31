@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::{fmt, str::FromStr};
 
 /// Represents a DNA base modification type.
@@ -46,6 +46,30 @@ impl ModType {
             ModType::SixMA => "a",
             ModType::FiveMC => "m",
             ModType::FourMC => "21839",
+        }
+    }
+
+    /// Passes the sam header tag to ModType
+    ///
+    /// Sam tags have the following and more for the methylation types:
+    /// MM:Z:{*}
+    /// - `A+a` (6mA): `"a"`
+    /// - `C+m` (5mC): `"m"`
+    /// - `C+21839` (4mC): `"21839"`
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::ModType;
+    ///
+    /// assert_eq!(ModType::from_sam_code('A', "a"), Some(ModType::SixMA));
+    /// ```
+    pub fn from_sam_code(base: char, modification: &str) -> Option<Self> {
+        // WARN I should add the other bases in the future
+        match (base, modification) {
+            ('A', "a") => Some(ModType::SixMA),
+            ('C', "m") => Some(ModType::FiveMC),
+            ('C', "21839") => Some(ModType::FourMC),
+            _ => None,
         }
     }
 }
