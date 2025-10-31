@@ -1,6 +1,7 @@
 use ahash::AHashMap;
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use epimetheus_core::{models::contig::Contig, services::traits::FastaReader};
+use methylome::sequence::Sequence;
 use seq_io::fasta::{Reader as FxReader, Record};
 use std::path::Path;
 
@@ -30,9 +31,8 @@ impl FastaReader for Reader {
                 }
             }
 
-            let seq = String::from_utf8(record.owned_seq())
-                .with_context(|| format!("Invalid UTF8 character in FASTA record: '{}'", id))?
-                .to_string();
+            let seq = Sequence::from_u8(record.seq())
+                .map_err(|e| anyhow!("Could not parse contig sequence: {}", e.to_string()))?;
 
             contigs.insert(id.clone(), Contig::new(id, seq));
         }
