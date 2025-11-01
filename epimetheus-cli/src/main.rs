@@ -112,6 +112,7 @@ fn main() -> Result<()> {
                         reads,
                         motifs,
                         methyl_args.min_meth_quality.clone(),
+                        methyl_args.threads.clone(),
                     )?;
 
                     info!("Writing methylation pattern");
