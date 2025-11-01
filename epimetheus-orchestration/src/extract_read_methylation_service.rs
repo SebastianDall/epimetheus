@@ -20,7 +20,7 @@ pub fn extract_read_methylation_pattern(
     let batches: Vec<_> = reads.chunks(BATCH_SIZE).collect();
 
     // Process batches in parallel
-    let results: Vec<HashMap<(String, String, String, u32), (u32, u32)>> = batches
+    let results: Vec<HashMap<(String, u32, String, String, u32), (u32, u32)>> = batches
         .into_par_iter()
         .map(|batch| {
             let mut batch_data = HashMap::new();
@@ -28,6 +28,7 @@ pub fn extract_read_methylation_pattern(
             for read in batch {
                 let sequence = read.get_sequence();
                 let modifications = read.get_modifications();
+                let read_length = read.get_sequence().len();
 
                 for motif in &motifs {
                     // Find all motif positions in this read
@@ -42,6 +43,7 @@ pub fn extract_read_methylation_pattern(
 
                         let key = (
                             read.get_name().clone(),
+                            read_length as u32,
                             motif_sequence,
                             motif.mod_type.to_pileup_code().to_string(),
                             motif.mod_position as u32,
@@ -71,7 +73,8 @@ pub fn extract_read_methylation_pattern(
         .collect();
 
     // Merge results from all batches
-    let mut aggregated_data: HashMap<(String, String, String, u32), (u32, u32)> = HashMap::new();
+    let mut aggregated_data: HashMap<(String, u32, String, String, u32), (u32, u32)> =
+        HashMap::new();
     for batch_result in results {
         for (key, (n_modified, n_motif_obs)) in batch_result {
             let entry = aggregated_data.entry(key).or_insert((0, 0));
@@ -82,14 +85,18 @@ pub fn extract_read_methylation_pattern(
 
     // Convert aggregated data to vectors for DataFrame
     let mut read_ids = Vec::with_capacity(aggregated_data.len());
+    let mut read_lengths = Vec::with_capacity(aggregated_data.len());
     let mut motif_sequences = Vec::with_capacity(aggregated_data.len());
     let mut mod_types = Vec::with_capacity(aggregated_data.len());
     let mut mod_positions = Vec::with_capacity(aggregated_data.len());
     let mut n_modified_vec = Vec::with_capacity(aggregated_data.len());
     let mut n_motif_obs_vec = Vec::with_capacity(aggregated_data.len());
 
-    for ((read_id, motif_seq, mod_type, mod_pos), (n_modified, n_motif_obs)) in aggregated_data {
+    for ((read_id, read_length, motif_seq, mod_type, mod_pos), (n_modified, n_motif_obs)) in
+        aggregated_data
+    {
         read_ids.push(read_id);
+        read_lengths.push(read_length);
         motif_sequences.push(motif_seq);
         mod_types.push(mod_type);
         mod_positions.push(mod_pos);
@@ -100,6 +107,7 @@ pub fn extract_read_methylation_pattern(
     // Create DataFrame
     let df = df! [
         "read_id" => read_ids,
+        "read_length" => read_lengths,
         "motif" => motif_sequences,
         "mod_type" => mod_types,
         "mod_position" => mod_positions,
