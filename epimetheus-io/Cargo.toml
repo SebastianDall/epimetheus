@@ -20,6 +20,7 @@ ahash = "0.8.11"
 seq_io = "0.3.2"
 noodles-bgzf = "0.43.0"
 noodles-core = "0.18.0"
+noodles-fastq = "*"
 
 [dev-dependencies]
 tempfile = "3.0"
