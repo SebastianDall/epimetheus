@@ -1,7 +1,7 @@
 use ahash::{AHashMap, HashMap};
 use anyhow::Result;
 use log::error;
-use methylome::{Strand, find_motif_indices_in_contig, motif::Motif};
+use methylome::{Strand, find_motif_indices_in_sequence, motif::Motif};
 use rayon::prelude::*;
 
 use crate::models::{
@@ -21,9 +21,9 @@ pub fn calculate_contig_read_methylation_single(
     for motif in motifs.iter() {
         let mod_type = motif.mod_type;
 
-        let fwd_indices: Vec<usize> = find_motif_indices_in_contig(&contig_seq.as_str(), motif);
+        let fwd_indices: Vec<usize> = find_motif_indices_in_sequence(&contig_seq, motif);
         let rev_indices: Vec<usize> =
-            find_motif_indices_in_contig(&contig_seq.as_str(), &motif.reverse_complement());
+            find_motif_indices_in_sequence(&contig_seq, &motif.reverse_complement());
 
         if fwd_indices.is_empty() && rev_indices.is_empty() {
             continue;
@@ -155,10 +155,9 @@ mod tests {
 
         // Add a mock contig to the workspace
         workspace_builder
-            .add_contig(Contig::new(
-                "contig_3".to_string(),
-                "TGGACGATCCCGATC".to_string(),
-            ))
+            .add_contig(
+                Contig::from_string("contig_3".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
+            )
             .unwrap();
 
         let file = File::open(pileup_file).unwrap();
