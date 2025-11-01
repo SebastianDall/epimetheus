@@ -1,19 +1,24 @@
 use anyhow::{Result, bail};
 use clap::Parser;
-use epimetheus_core::services::traits::FastaReader;
+use epimetheus_core::services::traits::{FastaReader, FastqReader};
 use epimetheus_core::services::{
     application::motif_clustering_service::motif_clustering, domain::motif_processor::create_motifs,
 };
 
+use epimetheus_io::io::readers::fastq;
 use epimetheus_io::services::compression_service::CompressorService;
 use epimetheus_io::services::decompression_service::extract_from_pileup;
 
 use epimetheus_orchestration::extract_methylation_pattern_service::{
     MethylationInput, extract_methylation_pattern,
 };
+use epimetheus_orchestration::extract_read_methylation_service::extract_read_methylation_pattern;
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::{info, warn};
+use polars::io::csv::write::CsvWriter;
+use polars::prelude::*;
+use std::fs::File;
 use std::time::Instant;
 
 mod argparser;
@@ -22,6 +27,7 @@ mod utils;
 use argparser::Args;
 
 pub use crate::commands::compression::args::BgZipCommands;
+use crate::commands::extract_methylation_pattern::SequenceCommand;
 use crate::utils::create_output_file;
 
 fn main() -> Result<()> {
@@ -32,52 +38,89 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     match args.command {
-        argparser::Commands::MethylationPattern(methyl_args) => {
-            create_output_file(&methyl_args.output)?;
+        argparser::Commands::MethylationPattern(generic_methyl_args) => {
+            match &generic_methyl_args.commands {
+                SequenceCommand::Contig(methyl_args) => {
+                    create_output_file(&methyl_args.output)?;
 
-            let motifs = create_motifs(&methyl_args.motifs)?;
+                    let motifs = create_motifs(&methyl_args.motifs)?;
 
-            if methyl_args.contigs.is_some() {
-                methyl_args.validate_filter()?;
+                    if methyl_args.contigs.is_some() {
+                        methyl_args.validate_filter()?;
+                    }
+                    let contigs = if let Some(contigs_filter) = &methyl_args.contigs {
+                        info!("Loading assembly - specified contigs provided");
+                        epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                            &methyl_args.assembly,
+                            Some(contigs_filter.clone()),
+                        )?
+                    } else {
+                        info!("Loading assembly");
+                        epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                            &methyl_args.assembly,
+                            None,
+                        )?
+                    };
+
+                    if contigs.len() == 0 {
+                        bail!("No contigs found in assembly");
+                    }
+
+                    let ext = methyl_args.pileup.extension().and_then(|s| s.to_str());
+                    let input = if ext == Some("gz") {
+                        MethylationInput::GzFile(methyl_args.pileup.clone())
+                    } else if ext == Some("bed") {
+                        MethylationInput::BedFile(
+                            methyl_args.pileup.clone(),
+                            methyl_args.batch_size,
+                        )
+                    } else {
+                        bail!("Unsupported file type")
+                    };
+
+                    info!("Finding methylation");
+                    let meth_pattern = extract_methylation_pattern(
+                        input,
+                        contigs,
+                        motifs,
+                        methyl_args.threads,
+                        methyl_args.min_valid_read_coverage,
+                        methyl_args.min_valid_cov_to_diff_fraction,
+                        methyl_args.allow_mismatch,
+                        &methyl_args.output_type,
+                    )?;
+
+                    info!("Writing output to: {}", &methyl_args.output.display());
+                    meth_pattern.write_output(&methyl_args.output)?;
+                }
+                SequenceCommand::Read(methyl_args) => {
+                    create_output_file(&methyl_args.output)?;
+
+                    let motifs = create_motifs(&methyl_args.motifs)?;
+
+                    info!("Reading reads");
+                    let reads = fastq::Reader::read_fastq(
+                        &methyl_args.input,
+                        methyl_args.read_ids.clone(),
+                    )?;
+
+                    info!("Searching methylation pattern");
+                    let mut meth_pattern = extract_read_methylation_pattern(
+                        reads,
+                        motifs,
+                        // &methyl_args.min_meth_quality,
+                    )?;
+
+                    let mut file = File::create(&methyl_args.output)?;
+                    CsvWriter::new(&mut file)
+                        .with_separator(b'\t')
+                        .finish(&mut meth_pattern)?;
+                    info!(
+                        "Written read methylation pattern to: {}",
+                        methyl_args.output.display()
+                    );
+                }
             }
-            let contigs = if let Some(contigs_filter) = &methyl_args.contigs {
-                info!("Loading assembly - specified contigs provided");
-                epimetheus_io::io::readers::fasta::Reader::read_fasta(
-                    &methyl_args.assembly,
-                    Some(contigs_filter.clone()),
-                )?
-            } else {
-                info!("Loading assembly");
-                epimetheus_io::io::readers::fasta::Reader::read_fasta(&methyl_args.assembly, None)?
-            };
-
-            if contigs.len() == 0 {
-                bail!("No contigs found in assembly");
-            }
-
-            let ext = methyl_args.pileup.extension().and_then(|s| s.to_str());
-            let input = if ext == Some("gz") {
-                MethylationInput::GzFile(methyl_args.pileup.clone())
-            } else if ext == Some("bed") {
-                MethylationInput::BedFile(methyl_args.pileup.clone(), methyl_args.batch_size)
-            } else {
-                bail!("Unsupported file type")
-            };
-
-            info!("Finding methylation");
-            let meth_pattern = extract_methylation_pattern(
-                input,
-                contigs,
-                motifs,
-                methyl_args.threads,
-                methyl_args.min_valid_read_coverage,
-                methyl_args.min_valid_cov_to_diff_fraction,
-                methyl_args.allow_mismatch,
-                &methyl_args.output_type,
-            )?;
-
-            info!("Writing output to: {}", &methyl_args.output.display());
-            meth_pattern.write_output(&methyl_args.output)?;
         }
         argparser::Commands::MotifCluster(motif_cluster_args) => {
             create_output_file(&motif_cluster_args.output)?;
