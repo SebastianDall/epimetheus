@@ -19,6 +19,7 @@ use log::{info, warn};
 use polars::io::csv::write::CsvWriter;
 use polars::prelude::*;
 use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::time::Instant;
 
 mod argparser;
@@ -98,11 +99,22 @@ fn main() -> Result<()> {
 
                     let motifs = create_motifs(&methyl_args.motifs)?;
 
+                    let read_ids_filter = if let Some(file) = &methyl_args.read_ids_file {
+                        let mut ids = Vec::new();
+                        let reader = BufReader::new(File::open(file)?);
+
+                        for result in reader.lines() {
+                            let id = result?;
+                            ids.push(id);
+                        }
+                        info!("Found {} read ids in file.", ids.len());
+                        Some(ids)
+                    } else {
+                        None
+                    };
+
                     info!("Reading reads");
-                    let reads = fastq::Reader::read_fastq(
-                        &methyl_args.input,
-                        methyl_args.read_ids.clone(),
-                    )?;
+                    let reads = fastq::Reader::read_fastq(&methyl_args.input, read_ids_filter)?;
 
                     info!(
                         "{} reads loaded. Searching methylation pattern.",

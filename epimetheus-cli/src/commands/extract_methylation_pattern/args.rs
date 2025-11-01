@@ -90,8 +90,8 @@ pub struct ReadMethylationPatternArgs {
     #[arg(short, long, required = true, help = "Path to fastq file.")]
     pub input: PathBuf,
 
-    #[arg(long, num_args(1..), help = "Specific reads to process.")]
-    pub read_ids: Option<Vec<String>>,
+    #[arg(long, help = "File with specific read ids to process.")]
+    pub read_ids_file: Option<PathBuf>,
 
     #[arg(
         short,
