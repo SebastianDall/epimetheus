@@ -104,13 +104,17 @@ fn main() -> Result<()> {
                         methyl_args.read_ids.clone(),
                     )?;
 
-                    info!("Searching methylation pattern");
+                    info!(
+                        "{} reads loaded. Searching methylation pattern.",
+                        reads.len()
+                    );
                     let mut meth_pattern = extract_read_methylation_pattern(
                         reads,
                         motifs,
-                        // &methyl_args.min_meth_quality,
+                        methyl_args.min_meth_quality.clone(),
                     )?;
 
+                    info!("Writing methylation pattern");
                     let mut file = File::create(&methyl_args.output)?;
                     CsvWriter::new(&mut file)
                         .with_separator(b'\t')

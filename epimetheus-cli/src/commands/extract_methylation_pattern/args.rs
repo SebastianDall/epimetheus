@@ -109,7 +109,7 @@ pub struct ReadMethylationPatternArgs {
 
     #[arg(
         long,
-        default_value_t = 0,
+        default_value_t = 175,
         help = "Minimum Methylation Basecalling score [0-255]"
     )]
     pub min_meth_quality: u8,
