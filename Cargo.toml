@@ -16,6 +16,7 @@ repository = "https://github.com/SebastianDall/epimetheus"
 
 [workspace.dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
+polars = { version = "0.51" }
 anyhow = "1.0.94"
 log = "0.4.22"
 env_logger = "0.11.5"
