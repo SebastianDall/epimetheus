@@ -99,7 +99,7 @@ fn main() -> Result<()> {
 
                     let motifs = create_motifs(&methyl_args.motifs)?;
 
-                    let read_ids_filter = if let Some(file) = &methyl_args.read_ids_file {
+                    let read_ids_filter = if let Some(file) = &methyl_args.read_ids {
                         let mut ids = Vec::new();
                         let reader = BufReader::new(File::open(file)?);
 

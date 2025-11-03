@@ -96,7 +96,7 @@ pub struct ReadMethylationPatternArgs {
     pub input: PathBuf,
 
     #[arg(long, help = "File with specific read ids to process.")]
-    pub read_ids_file: Option<PathBuf>,
+    pub read_ids: Option<PathBuf>,
 
     #[arg(
         short,
