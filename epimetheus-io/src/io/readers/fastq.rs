@@ -1,5 +1,6 @@
 use anyhow::Context;
 use epimetheus_core::services::traits::FastqReader;
+use flate2::read::GzDecoder;
 use methylome::read::Read;
 use noodles_fastq::{self as fastq};
 
@@ -9,11 +10,17 @@ pub struct Reader;
 
 impl FastqReader for Reader {
     fn read_fastq(path: &Path, read_filter: Option<Vec<String>>) -> anyhow::Result<Vec<Read>> {
-        let mut reader = File::open(path)
-            .map(BufReader::new)
-            .map(fastq::io::Reader::new)?;
-        let mut reads = Vec::new();
+        let file = File::open(path)?;
 
+        let file: Box<dyn std::io::Read> =
+            if path.extension().and_then(|s| s.to_str()) == Some("gz") {
+                Box::new(GzDecoder::new(file))
+            } else {
+                Box::new(file)
+            };
+        let mut reader = fastq::io::Reader::new(BufReader::new(file));
+
+        let mut reads = Vec::new();
         let num_reads_in_filter = if let Some(f) = &read_filter {
             f.len()
         } else {
@@ -23,7 +30,8 @@ impl FastqReader for Reader {
         let mut filtered_reads = 0;
 
         for result in reader.records() {
-            let record = result.with_context(|| "Error reading record from fastq file.")?;
+            let record: noodles_fastq::Record =
+                result.with_context(|| "Error reading record from fastq file.")?;
 
             let id = record.name().to_string();
 

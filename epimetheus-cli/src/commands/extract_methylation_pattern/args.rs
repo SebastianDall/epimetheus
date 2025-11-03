@@ -87,7 +87,12 @@ impl ContigMethylationPatternArgs {
 
 #[derive(Parser, Debug, Clone)]
 pub struct ReadMethylationPatternArgs {
-    #[arg(short, long, required = true, help = "Path to fastq file.")]
+    #[arg(
+        short,
+        long,
+        required = true,
+        help = "Path to fastq file. Can be gzipped."
+    )]
     pub input: PathBuf,
 
     #[arg(long, help = "File with specific read ids to process.")]

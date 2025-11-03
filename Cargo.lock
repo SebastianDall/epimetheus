@@ -833,6 +833,7 @@ dependencies = [
  "anyhow",
  "csv",
  "epimetheus-core",
+ "flate2",
  "log",
  "methylome",
  "noodles-bgzf",
