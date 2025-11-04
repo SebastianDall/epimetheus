@@ -3,6 +3,7 @@ import tempfile
 import pytest
 import polars as pl
 import pickle
+from Bio import SeqIO
 from epymetheus import epymetheus
 from epymetheus.epymetheus import MethylationOutput
 
@@ -115,3 +116,71 @@ def test_methylation_output_pickle():
 
         # Verify string representation is preserved
         assert str(unpickled) == str(variant)
+
+
+def test_methylation_pattern_from_contigs_weighted_mean(data_dir, tmp_path):
+    """Test methylation_pattern_from_contigs using Bio SeqIO to load contigs."""
+    pileup = os.path.join(data_dir, "geobacillus-plasmids.pileup.bed")
+    assembly = os.path.join(data_dir, "geobacillus-plasmids.assembly.fasta")
+    expected = os.path.join(data_dir, "expected_out_weighted_mean.tsv")
+
+    # Load contigs using Bio SeqIO (simulating user's read_fasta function)
+    contigs_dict = {}
+    with open(assembly, "r") as handle:
+        for record in SeqIO.parse(handle, "fasta"):
+            contigs_dict[record.id] = str(record.seq)
+
+    # Test the new function with pre-loaded contigs
+    result_df = epymetheus.methylation_pattern_from_contigs(
+        pileup=pileup,
+        assembly=contigs_dict,
+        motifs=["GATC_a_1", "GATC_m_3", "RGATCY_a_2"],
+        output_type=MethylationOutput.WeightedMean,
+        threads=1,
+        min_valid_read_coverage=3,
+        min_valid_cov_to_diff_fraction=0.8,
+        allow_assembly_pileup_mismatch=False
+    )
+
+    # Sort and write to file for comparison
+    outfile = tmp_path / "out_from_contigs.tsv"
+    result_df = result_df.sort(["contig", "motif", "mod_type"])
+    result_df.write_csv(outfile, separator="\t")
+
+    # Compare with expected output
+    actual = outfile.read_text()
+    expected_text = open(expected).read()
+    assert _normalize(actual) == _normalize(expected_text)
+
+
+def test_methylation_pattern_from_contigs_with_filter(data_dir):
+    """Test methylation_pattern_from_contigs with contig filtering."""
+    pileup = os.path.join(data_dir, "geobacillus-plasmids.pileup.bed")
+    assembly = os.path.join(data_dir, "geobacillus-plasmids.assembly.fasta")
+
+    # Load all contigs using Bio SeqIO
+    contigs_dict = {}
+    with open(assembly, "r") as handle:
+        for record in SeqIO.parse(handle, "fasta"):
+            contigs_dict[record.id] = str(record.seq)
+
+    # Test with contig filtering - only process specific contigs
+    target_contigs = ["contig_2", "contig_3"]
+    result_df = epymetheus.methylation_pattern_from_contigs(
+        pileup=pileup,
+        assembly=contigs_dict,
+        motifs=["GATC_a_1", "GATC_m_3"],
+        output_type=MethylationOutput.WeightedMean,
+        contigs=target_contigs,  # Filter to only these contigs
+        threads=1,
+        min_valid_read_coverage=3,
+        min_valid_cov_to_diff_fraction=0.8,
+        allow_assembly_pileup_mismatch=False
+    )
+
+    # Verify only filtered contigs are in the result
+    actual_contigs = set(result_df.get_column("contig").to_list())
+    assert actual_contigs.issubset(set(target_contigs))
+
+    # Should have some results (not empty)
+    assert len(result_df) > 0

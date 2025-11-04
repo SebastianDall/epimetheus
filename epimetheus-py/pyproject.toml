@@ -10,14 +10,15 @@ authors = [{name = "Sebastian Dall", email = "semoda@bio.aau.dk"}]
 classifiers = ["Programming Language :: Rust"]
 dependencies = [
   "polars",
-  "pyarrow"
+  "pyarrow",
 ]
 
 
 
 [project.optional-dependencies]
 testing = [
-  "pytest>=8"
+  "pytest>=8",
+  "biopython"
 ]
 
 
