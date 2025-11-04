@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    compression::args::BgZipArgs, extract_methylation_pattern::args::MethylationPatternArgs,
+    compression::args::BgZipArgs, extract_methylation_pattern::MethylationInput,
     motif_clustering::MotifClusteringArgs,
 };
 
@@ -14,7 +14,7 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    MethylationPattern(MethylationPatternArgs),
+    MethylationPattern(MethylationInput),
     MotifCluster(MotifClusteringArgs),
     Bgzip(BgZipArgs),
 }

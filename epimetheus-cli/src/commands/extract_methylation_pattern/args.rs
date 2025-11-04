@@ -5,7 +5,7 @@ use clap::Parser;
 use epimetheus_core::models::methylation::MethylationOutput;
 
 #[derive(Parser, Debug, Clone)]
-pub struct MethylationPatternArgs {
+pub struct ContigMethylationPatternArgs {
     #[arg(
         short,
         long,
@@ -71,7 +71,7 @@ pub struct MethylationPatternArgs {
     pub output_type: MethylationOutput,
 }
 
-impl MethylationPatternArgs {
+impl ContigMethylationPatternArgs {
     pub fn validate_filter(&self) -> anyhow::Result<()> {
         if let Some(_contigs) = &self.contigs {
             if self.pileup.extension().and_then(|s| s.to_str()) != Some("gz") {
@@ -83,4 +83,39 @@ impl MethylationPatternArgs {
 
         Ok(())
     }
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ReadMethylationPatternArgs {
+    #[arg(
+        short,
+        long,
+        required = true,
+        help = "Path to fastq file. Can be gzipped."
+    )]
+    pub input: PathBuf,
+
+    #[arg(long, help = "File with specific read ids to process.")]
+    pub read_ids: Option<PathBuf>,
+
+    #[arg(
+        short,
+        long,
+        required = true,
+        help = "Path to output file. Must be .tsv."
+    )]
+    pub output: PathBuf,
+
+    #[arg(short, long, default_value_t = 1, help = "Number of parallel tasks.")]
+    pub threads: usize,
+
+    #[arg(short, long, required = true, num_args(1..), help = "Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'")]
+    pub motifs: Vec<String>,
+
+    #[arg(
+        long,
+        default_value_t = 175,
+        help = "Minimum Methylation Basecalling score [0-255]"
+    )]
+    pub min_meth_quality: u8,
 }

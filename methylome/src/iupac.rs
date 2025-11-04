@@ -2,6 +2,23 @@ use std::fmt::Display;
 
 use anyhow::bail;
 
+use crate::ModType;
+
+const IUPAC_TABLE: [Option<IupacBase>; 256] = {
+    let mut table = [None; 256];
+    table[65] = Some(IupacBase::A); // 'A'
+    table[84] = Some(IupacBase::T); // 'T'
+    table[67] = Some(IupacBase::C); // 'C'
+    table[71] = Some(IupacBase::G); // 'G'
+    table[78] = Some(IupacBase::N); // 'N'
+    table[97] = Some(IupacBase::A); // 'a'
+    table[116] = Some(IupacBase::T); // 't'
+    table[99] = Some(IupacBase::C); // 'c'
+    table[103] = Some(IupacBase::G); // 'g'
+    table[110] = Some(IupacBase::N); // 'n'
+    table
+};
+
 /// Represents an IUPAC nucleotide base.
 ///
 /// IUPAC nucleotide codes are used to represent ambiguous positions in DNA or RNA sequences.
@@ -295,7 +312,6 @@ impl IupacBase {
         }
     }
 
-
     pub const fn mask(self) -> u8 {
         match self {
             Self::A => 0b0001,
@@ -313,6 +329,32 @@ impl IupacBase {
             Self::H => 0b1011,
             Self::V => 0b1101,
             Self::N => 0b1111,
+        }
+    }
+
+    /// Converts ascii bytes to iupac base
+    ///
+    /// # Examples
+    /// ```
+    /// use methylome::IupacBase;
+    ///
+    ///
+    /// assert_eq!(Some(IupacBase::A), IupacBase::from_ascii(b'A'));
+    /// assert_eq!(Some(IupacBase::T), IupacBase::from_ascii(b'T'));
+    /// assert_eq!(Some(IupacBase::C), IupacBase::from_ascii(b'C'));
+    /// assert_eq!(Some(IupacBase::G), IupacBase::from_ascii(b'G'));
+    /// assert_eq!(Some(IupacBase::N), IupacBase::from_ascii(b'N'));
+    /// assert_eq!(None, IupacBase::from_ascii(b'Y'));
+    /// ```
+    pub fn from_ascii(byte: u8) -> Option<Self> {
+        IUPAC_TABLE[byte as usize]
+    }
+
+    pub fn from_mod_type(mod_type: &ModType) -> Self {
+        match mod_type {
+            &ModType::SixMA => IupacBase::A,
+            &ModType::FiveMC => IupacBase::C,
+            &ModType::FourMC => IupacBase::C,
         }
     }
 }

@@ -2,7 +2,7 @@ use ahash::AHashMap;
 use anyhow::{Result, bail};
 
 use super::methylation::*;
-use methylome::{ModType, Strand};
+use methylome::{ModType, Strand, sequence::Sequence};
 
 pub type ContigId = String;
 pub type Position = usize;
@@ -10,13 +10,13 @@ pub type Position = usize;
 #[derive(Clone)]
 pub struct Contig {
     pub id: ContigId,
-    pub sequence: String,
+    pub sequence: Sequence,
     sequence_len: usize,
     pub methylated_positions: AHashMap<(Position, Strand, ModType), MethylationCoverage>,
 }
 
 impl Contig {
-    pub fn new(id: String, sequence: String) -> Self {
+    pub fn new(id: String, sequence: Sequence) -> Self {
         let sequence_length = sequence.len();
 
         Self {
@@ -25,6 +25,18 @@ impl Contig {
             sequence_len: sequence_length,
             methylated_positions: AHashMap::new(),
         }
+    }
+
+    pub fn from_string(id: String, sequence: String) -> Result<Self> {
+        let sequence = Sequence::from_str(&sequence)?;
+        let sequence_length = sequence.len();
+
+        Ok(Self {
+            id,
+            sequence,
+            sequence_len: sequence_length,
+            methylated_positions: AHashMap::new(),
+        })
     }
 
     pub fn add_methylation(
@@ -86,7 +98,8 @@ mod tests {
 
     #[test]
     fn test_contig_construction() {
-        let mut contig = Contig::new("contig_1".to_string(), "TGGACGATCCCGATC".to_string());
+        let mut contig =
+            Contig::from_string("contig_1".to_string(), "TGGACGATCCCGATC".to_string()).unwrap();
 
         let meth_record1 = MethylationCoverage::new(1, 1, 0).unwrap();
         let meth_record2 = MethylationCoverage::new(2, 2, 0).unwrap();
@@ -147,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_out_of_bounds_record() {
-        let mut contig = Contig::new("1".to_string(), "GATC".to_string());
+        let mut contig = Contig::from_string("1".to_string(), "GATC".to_string()).unwrap();
 
         let result = contig.add_methylation(
             4,

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use ahash::AHashMap;
 use anyhow::Result;
+use methylome::read::Read;
 
 use crate::models::{contig::Contig, pileup::PileupRecordString};
 
@@ -47,4 +48,8 @@ pub trait FastaReader {
         path: &Path,
         contig_filter: Option<Vec<String>>,
     ) -> Result<AHashMap<String, Contig>>;
+}
+
+pub trait FastqReader {
+    fn read_fastq(path: &Path, read_filter: Option<Vec<String>>) -> Result<Vec<Read>>;
 }

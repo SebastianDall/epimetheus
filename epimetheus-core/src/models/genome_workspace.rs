@@ -114,7 +114,8 @@ mod tests {
         let mut workspace_builder = GenomeWorkspaceBuilder::new();
 
         // Add a mock contig to the workspace
-        workspace_builder.add_contig(Contig::new("contig_3".to_string(), "ATCG".to_string()))?;
+        workspace_builder
+            .add_contig(Contig::from_string("contig_3".to_string(), "ATCG".to_string()).unwrap())?;
 
         // Create a temporary pileup file
         let mut pileup_file = NamedTempFile::new()?;

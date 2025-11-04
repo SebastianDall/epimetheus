@@ -236,7 +236,7 @@ mod tests {
         let mut assembly = AHashMap::new();
         assembly.insert(
             "contig_3".to_string(),
-            Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_3".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
@@ -293,11 +293,11 @@ mod tests {
         let mut assembly = AHashMap::new();
         assembly.insert(
             "contig_3".to_string(),
-            Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_3".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         assembly.insert(
             "contig_4".to_string(),
-            Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_4".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
@@ -395,11 +395,11 @@ mod tests {
         let mut assembly = AHashMap::new();
         assembly.insert(
             "contig_3".to_string(),
-            Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_3".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         assembly.insert(
             "contig_4".to_string(),
-            Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_4".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);
@@ -447,11 +447,11 @@ mod tests {
         let mut assembly = AHashMap::new();
         assembly.insert(
             "contig_3".to_string(),
-            Contig::new("contig_3".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_3".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         assembly.insert(
             "contig_4".to_string(),
-            Contig::new("contig_4".to_string(), "TGGACGATCCCGATC".to_string()),
+            Contig::from_string("contig_4".to_string(), "TGGACGATCCCGATC".to_string()).unwrap(),
         );
         let file = File::open(pileup_file).unwrap();
         let reader = BufReader::new(file);

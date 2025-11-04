@@ -801,6 +801,7 @@ dependencies = [
  "humantime",
  "indicatif",
  "log",
+ "polars",
  "rayon",
  "tempfile",
 ]
@@ -832,11 +833,13 @@ dependencies = [
  "anyhow",
  "csv",
  "epimetheus-core",
+ "flate2",
  "log",
  "methylome",
  "noodles-bgzf",
  "noodles-core",
  "noodles-csi",
+ "noodles-fastq",
  "noodles-tabix",
  "rayon",
  "seq_io",
@@ -863,6 +866,7 @@ dependencies = [
 name = "epimetheus-py"
 version = "0.7.6"
 dependencies = [
+ "ahash",
  "anyhow",
  "env_logger",
  "epimetheus-core",
@@ -1674,7 +1678,7 @@ name = "methylome"
 version = "1.0.1"
 dependencies = [
  "anyhow",
- "regex",
+ "noodles-fastq",
 ]
 
 [[package]]
@@ -1728,6 +1732,16 @@ dependencies = [
  "indexmap",
  "noodles-bgzf",
  "noodles-core",
+]
+
+[[package]]
+name = "noodles-fastq"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db9a66608bdbe2a2e1ece0b963a9c3bcbf922ca5600c3b6ba6cb96cf6f8d6458"
+dependencies = [
+ "bstr",
+ "memchr",
 ]
 
 [[package]]
@@ -2633,7 +2647,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2890,7 +2904,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
