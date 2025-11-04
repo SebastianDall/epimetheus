@@ -866,6 +866,7 @@ dependencies = [
 name = "epimetheus-py"
 version = "0.7.6"
 dependencies = [
+ "ahash",
  "anyhow",
  "env_logger",
  "epimetheus-core",
@@ -1678,7 +1679,6 @@ version = "1.0.1"
 dependencies = [
  "anyhow",
  "noodles-fastq",
- "regex",
 ]
 
 [[package]]
