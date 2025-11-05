@@ -26,7 +26,6 @@ use epimetheus_orchestration::extract_methylation_pattern_service::extract_methy
 use polars::prelude::*;
 use pyo3::prelude::*;
 use pyo3_polars::PyDataFrame;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -140,7 +139,7 @@ fn create_methylation_pattern_df(
 ///
 /// Args:
 ///     pileup (str): Path to the input pileup file (BED format, can be gzipped)
-///     assembly (str): Path to the assembly FASTA file
+///     assembly (str|Dict[str,str|SeqObject]): Path to the assembly FASTA file or Dictionary with contigs. Could be loaded with Bio::SeqIO
 ///     contigs (List[str] | None): Optional list of contig names to filter for before calculating methylation.
 ///     output (str): Path for the output TSV file
 ///     threads (int): Number of threads to use for parallel processing
@@ -173,7 +172,7 @@ fn create_methylation_pattern_df(
 ))]
 fn methylation_pattern(
     pileup: &str,
-    assembly: &str,
+    assembly: &Bound<'_, PyAny>,
     motifs: Vec<String>,
     output_type: MethylationOutput,
     contigs: Option<Vec<String>>,
@@ -184,15 +183,46 @@ fn methylation_pattern(
     min_valid_cov_to_diff_fraction: f32,
     allow_assembly_pileup_mismatch: bool,
 ) -> PyResult<PyDataFrame> {
-    let parsed_contigs = if let Some(contigs_filter) = contigs {
-        epimetheus_io::io::readers::fasta::Reader::read_fasta(
-            &Path::new(assembly),
-            Some(contigs_filter),
-        )
+    let parsed_contigs = if let Ok(path) = assembly.extract::<String>() {
+        if let Some(contigs_filter) = contigs {
+            epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                &Path::new(&path),
+                Some(contigs_filter),
+            )
+        } else {
+            epimetheus_io::io::readers::fasta::Reader::read_fasta(&Path::new(&path), None)
+        }
+    } else if let Ok(dict) = assembly.downcast::<pyo3::types::PyDict>() {
+        let mut asm = AHashMap::new();
+        for (key, value) in dict.iter() {
+            let id: String = key.extract()?;
+            if let Some(ref contig_filter) = contigs {
+                if !contig_filter.contains(&id) {
+                    continue;
+                }
+            }
+
+
+            let sequence_str = if let Ok(s) = value.extract::<String>() {
+                s
+            } else {
+                if let Ok(seq_obj) = value.getattr("seq") {
+                    seq_obj.str()?.extract::<String>()?
+                } else {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(
+                        format!("Dictionary for contig '{}' must be string or SeqRecord object.", id)
+                    ));
+                }
+            };
+
+            let contig = Contig::from_string(id.clone(), sequence_str).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            asm.insert(id, contig);
+        }
+        Ok(asm)
     } else {
-        epimetheus_io::io::readers::fasta::Reader::read_fasta(&Path::new(assembly), None)
-    }
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        return Err(pyo3::exceptions::PyTypeError::new_err("Invalid assembly object. assembly must be either a file path (str) or a dictionary (dict[str, Seq|str])"));
+    }.map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
 
     methylation_pattern_internal(
         pileup,
@@ -208,81 +238,7 @@ fn methylation_pattern(
     )
 }
 
-/// Extract methylation patterns for specified DNA motifs from pileup data.
-///
-/// This function processes Nanopore methylation calls from a pileup file and extracts
-/// methylation patterns for the specified DNA motifs, writing the results to an output file.
-///
-/// Args:
-///     pileup (str): Path to the input pileup file (BED format, can be gzipped)
-///     assembly (Dict[str,str]): Path to the assembly FASTA file
-///     contigs (List[str] | None): Optional list of contig names to filter for before calculating methylation.
-///     output (str): Path for the output TSV file
-///     threads (int): Number of threads to use for parallel processing
-///     motifs (List[str]): List of DNA motifs to search for (e.g., ['GATC', 'CCWGG'])
-///     min_valid_read_coverage (int): Minimum number of valid reads required for a position
-///     batch_size (int): Number of records to process in each batch
-///     min_valid_cov_to_diff_fraction (float): Minimum fraction of valid coverage to difference coverage
-///     allow_assembly_pileup_mismatch (bool): Whether to allow mismatches between assembly and pileup
-///     output_type (MethylationOutput): Output format type
-///
-/// Returns:
-///     polars.DataFrame: DataFrame containing methylation pattern results
-///
-/// Raises:
-///     PyRuntimeError: If processing fails due to IO errors or data format issues
-#[pyfunction]
-#[pyo3(signature = (
-    pileup,
-    assembly,
-    motifs,
-    output_type,
-    contigs=None,
-    threads = 1,
-    min_valid_read_coverage = 3,
-    batch_size=100,
-    min_valid_cov_to_diff_fraction = 0.8,
-    allow_assembly_pileup_mismatch = false,
-    
-))]
-fn methylation_pattern_from_contigs(
-    pileup: &str,
-    assembly: HashMap<String, String>,
-    motifs: Vec<String>,
-    output_type: MethylationOutput,
-    contigs: Option<Vec<String>>,
-    threads: usize,
-    min_valid_read_coverage: u32,
-    batch_size: usize,
-    min_valid_cov_to_diff_fraction: f32,
-    allow_assembly_pileup_mismatch: bool,
-) -> PyResult<PyDataFrame> {
-    let mut parsed_assembly = AHashMap::new();
 
-    for (id, sequence_str) in assembly {
-        if let Some(ref contig_filter) = contigs {
-            if !contig_filter.contains(&id) {
-                continue;
-            }
-        }
-        let contig = Contig::from_string(id.clone(), sequence_str)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        parsed_assembly.insert(id, contig);
-    }
-
-    methylation_pattern_internal(
-        pileup,
-        parsed_assembly,
-        motifs,
-        output_type,
-        None, // No output file for this function
-        threads,
-        min_valid_read_coverage,
-        batch_size,
-        min_valid_cov_to_diff_fraction,
-        allow_assembly_pileup_mismatch,
-    )
-}
 /// Internal function shared by both methylation_pattern variants.
 ///
 /// This function contains the core logic for extracting methylation patterns,
@@ -709,12 +665,10 @@ fn methylation_pattern_from_dataframe(
 #[pymodule]
 fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(methylation_pattern, m)?)?;
-    m.add_function(wrap_pyfunction!(methylation_pattern_from_contigs, m)?)?;
     m.add_function(wrap_pyfunction!(methylation_pattern_from_dataframe, m)?)?;
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
-    // m.add_function(wrap_pyfunction!(bgzf_pileup_from_lines, m)?)?;
     m.add_class::<MethylationOutput>()?;
     m.add_class::<PileupColumn>()?;
     m.add_class::<BgzfWriter>()?;
