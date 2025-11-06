@@ -32,7 +32,7 @@ impl FastaReader for Reader {
             }
 
             let seq = Sequence::from_u8(record.seq())
-                .map_err(|e| anyhow!("Could not parse contig sequence: {}", e.to_string()))?;
+                .map_err(|e| anyhow!("Could not parse contig '{}': {}", id, e.to_string()))?;
 
             contigs.insert(id.clone(), Contig::new(id, seq));
         }
