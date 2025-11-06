@@ -31,8 +31,10 @@ impl Sequence {
     pub fn from_u8(seq: &[u8]) -> Result<Self> {
         let parsed_sequence: Result<Vec<IupacBase>, anyhow::Error> = seq
             .iter()
+            .filter(|&&byte| !byte.is_ascii_whitespace())
             .map(|&byte| {
-                IupacBase::from_ascii(byte).ok_or_else(|| anyhow!("Invalid ascii byte: {}", byte))
+                IupacBase::from_ascii(byte)
+                    .ok_or_else(|| anyhow!("Invalid ascii byte: {}, '{}'", byte, byte as char))
             })
             .collect();
 
