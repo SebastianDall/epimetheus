@@ -1,13 +1,18 @@
 use anyhow::{Context, Result};
 use epimetheus_io::io::readers::bam::BamReader;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use log::warn;
 use methylome::{Motif, find_motif_indices_in_sequence};
 use rayon::prelude::*;
 use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
-    sync::mpsc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
     thread,
 };
 
@@ -45,11 +50,10 @@ pub fn extract_read_methylation_pattern(
     );
     main_pb.set_message("Processing contigs");
 
-    let writes_pb = multi.add(ProgressBar::new(0));
+    let writes_pb = multi.add(ProgressBar::new_spinner());
     writes_pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{msg} [{elapsed_precise}] [{bar:40.magenta/red}] {pos} lines written")?
-            .progress_chars("#>-"),
+        ProgressStyle::default_spinner()
+            .template("📝 {msg} [{elapsed_precise}] {spinner:.green} {pos} lines written")?,
     );
     writes_pb.set_message("Writing");
 
@@ -65,20 +69,33 @@ pub fn extract_read_methylation_pattern(
             "contig_id\tread_id\tread_length\tmotif\tmod_type\tmod_position\tquality"
         )?;
 
+        let mut lines_written = 0;
         while let Ok(line) = receiver.recv() {
             writeln!(writer, "{}", line)?;
-            writes_pb_clone.inc(1);
+            lines_written += 1;
+
+            if lines_written % 1000 == 0 {
+                writes_pb_clone.inc(1000);
+                lines_written = 0;
+            }
         }
         writer.flush()?;
         Ok(())
     });
 
+    let empty_contigs = Arc::new(AtomicUsize::new(0));
+    let empty_contigs_clone = empty_contigs.clone();
     contigs.par_iter().try_for_each(|contig_id| -> Result<()> {
         main_pb.inc(1);
         let mut local_reader = BamReader::new(input_file)?;
         let reads = local_reader
             .query_contig_reads(contig_id)
             .with_context(|| format!("Reading contig: {}", contig_id))?;
+
+        if reads.is_empty() {
+            empty_contigs_clone.fetch_add(1, Ordering::Relaxed);
+            return Ok(());
+        }
 
         for read in reads {
             let sequence = read.get_sequence();
@@ -117,5 +134,11 @@ pub fn extract_read_methylation_pattern(
     })?;
     drop(sender);
     let _ = writer_handle.join().unwrap();
+    let empty_count = empty_contigs.load(Ordering::Relaxed);
+    main_pb.finish_with_message("📝 Writing completed");
+    println!("");
+    if empty_count > 0 {
+        warn!("⚠ {} contigs contained no reads", empty_count);
+    }
     Ok(())
 }
