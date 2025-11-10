@@ -1,18 +1,13 @@
 use anyhow::{Context, Result};
 use epimetheus_io::io::readers::bam::BamReader;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use log::warn;
 use methylome::{Motif, find_motif_indices_in_sequence};
 use rayon::prelude::*;
 use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-        mpsc,
-    },
+    sync::mpsc,
     thread,
 };
 
@@ -83,8 +78,6 @@ pub fn extract_read_methylation_pattern(
         Ok(())
     });
 
-    let empty_contigs = Arc::new(AtomicUsize::new(0));
-    let empty_contigs_clone = empty_contigs.clone();
     contigs.par_iter().try_for_each(|contig_id| -> Result<()> {
         main_pb.inc(1);
         let mut local_reader = BamReader::new(input_file)?;
@@ -93,7 +86,6 @@ pub fn extract_read_methylation_pattern(
             .with_context(|| format!("Reading contig: {}", contig_id))?;
 
         if reads.is_empty() {
-            empty_contigs_clone.fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
 
@@ -134,11 +126,5 @@ pub fn extract_read_methylation_pattern(
     })?;
     drop(sender);
     let _ = writer_handle.join().unwrap();
-    let empty_count = empty_contigs.load(Ordering::Relaxed);
-    main_pb.finish_with_message("📝 Writing completed");
-    println!("");
-    if empty_count > 0 {
-        warn!("⚠ {} contigs contained no reads", empty_count);
-    }
     Ok(())
 }
