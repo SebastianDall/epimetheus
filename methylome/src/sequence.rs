@@ -42,6 +42,12 @@ impl Sequence {
     }
 }
 
+impl ToString for Sequence {
+    fn to_string(&self) -> String {
+        self.into_iter().map(|b| b.to_string()).collect()
+    }
+}
+
 impl Deref for Sequence {
     type Target = Vec<IupacBase>;
 
