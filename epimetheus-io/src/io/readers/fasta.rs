@@ -1,9 +1,11 @@
 use ahash::AHashMap;
 use anyhow::{Context, anyhow};
-use epimetheus_core::{models::contig::Contig, services::traits::FastaReader};
+use epimetheus_core::models::contig::Contig;
 use methylome::sequence::Sequence;
 use seq_io::fasta::{Reader as FxReader, Record};
 use std::path::Path;
+
+use crate::io::traits::FastaReader;
 
 pub struct Reader;
 

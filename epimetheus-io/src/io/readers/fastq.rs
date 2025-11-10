@@ -1,10 +1,11 @@
 use anyhow::Context;
-use epimetheus_core::services::traits::FastqReader;
 use flate2::read::GzDecoder;
 use methylome::read::Read;
 use noodles_fastq::{self as fastq};
 
 use std::{fs::File, io::BufReader, path::Path};
+
+use crate::io::traits::FastqReader;
 
 pub struct Reader;
 
