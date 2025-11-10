@@ -3,13 +3,25 @@ use std::collections::HashMap;
 
 use crate::{IupacBase, ModType, sequence::Sequence};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MethQual(pub u8);
 
-#[derive(Debug, PartialEq, Eq)]
+impl MethQual {
+    pub fn new(_0: u8) -> Self {
+        Self(_0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MethBase {
     pub base: ModType,
     pub quality: MethQual,
+}
+
+impl MethBase {
+    pub fn new(base: ModType, quality: MethQual) -> Self {
+        Self { base, quality }
+    }
 }
 
 type Position = usize;
@@ -23,15 +35,17 @@ impl BaseModifications {
     }
 }
 
+pub type ReadId = String;
+
 #[derive(Debug)]
 pub struct Read {
-    name: String,
+    name: ReadId,
     sequence: Sequence,
     modifications: BaseModifications,
 }
 
 impl Read {
-    pub fn new(name: String, sequence: Sequence, modifications: BaseModifications) -> Self {
+    pub fn new(name: ReadId, sequence: Sequence, modifications: BaseModifications) -> Self {
         Self {
             name,
             sequence,
@@ -51,7 +65,16 @@ impl Read {
             .collect();
 
         let sequence = Sequence::from_iupac(sequence.map_err(|e| anyhow!("{}", e.to_string()))?);
-        let skip_distances = MethSkipDistances::from_meth_tags(&record.definition())?;
+
+        let description = record.description().to_string();
+        let tags = parse_header_tags(&description);
+
+        let mm_string = tags.get("MM").unwrap_or(&"".to_string()).clone();
+        let ml_string = tags.get("ML").unwrap_or(&"".to_string()).clone();
+        let quality_scores = parse_ml_records(&ml_string)?;
+
+        let skip_distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores)?;
+
         let mods = convert_skip_distances_to_positions(&sequence, skip_distances)?;
 
         Ok(Self::new(record.name().to_string(), sequence, mods))
@@ -68,7 +91,7 @@ impl Read {
     }
 }
 
-fn convert_skip_distances_to_positions(
+pub fn convert_skip_distances_to_positions(
     seq: &Sequence,
     skip_distances: MethSkipDistances,
 ) -> Result<BaseModifications> {
@@ -162,44 +185,41 @@ impl MethSkipDistances {
     /// assert_eq!(sixma[1].0.0, 1);   // Second skip distance: 1
     /// assert_eq!(sixma[1].1.0, 204); // Second quality: 204
     /// ```
-    pub fn from_meth_tags(definition: &noodles_fastq::record::Definition) -> Result<Self> {
+    pub fn from_meth_tags(mm_string: String, quality_scores: Vec<MethQual>) -> Result<Self> {
         let mut distances = HashMap::new();
-        let description = definition.description().to_string();
 
-        let tags = parse_header_tags(&description);
+        if mm_string.chars().collect::<Vec<char>>().len() == 0 {
+            return Ok(Self { distances });
+        }
 
-        if let (Some(mm_value), Some(ml_value)) = (tags.get("MM"), tags.get("ML")) {
-            let quality_scores = parse_ml_records(ml_value)?;
+        let total_modifications: usize = mm_string
+            .split(';')
+            .map(|segment| segment.split(',').skip(1).count())
+            .sum();
 
-            let total_modifications: usize = mm_value
-                .split(';')
-                .map(|segment| segment.split(',').skip(1).count())
-                .sum();
+        if quality_scores.len() != total_modifications {
+            return Err(anyhow!(
+                "MM/ML length mismatch: {} modifications but {} quality scores",
+                total_modifications,
+                quality_scores.len()
+            ));
+        }
 
-            if quality_scores.len() != total_modifications {
-                return Err(anyhow!(
-                    "MM/ML length mismatch: {} modifications but {} quality scores",
-                    total_modifications,
-                    quality_scores.len()
-                ));
-            }
+        let mut quality_iter = quality_scores.into_iter();
 
-            let mut quality_iter = quality_scores.into_iter();
+        for segment in mm_string.split(";") {
+            if let Some((mod_info, distances_str)) = segment.split_once(',') {
+                if let Some(mod_type) = parse_mod_type(mod_info) {
+                    let skip_distances: Vec<SkipDistance> = distances_str
+                        .split(',')
+                        .filter_map(|s| s.parse().ok().map(SkipDistance))
+                        .collect();
 
-            for segment in mm_value.split(";") {
-                if let Some((mod_info, distances_str)) = segment.split_once(',') {
-                    if let Some(mod_type) = parse_mod_type(mod_info) {
-                        let skip_distances: Vec<SkipDistance> = distances_str
-                            .split(',')
-                            .filter_map(|s| s.parse().ok().map(SkipDistance))
-                            .collect();
-
-                        let distances_with_qual: Vec<(SkipDistance, MethQual)> = skip_distances
-                            .into_iter()
-                            .filter_map(|skip| quality_iter.next().map(|qual| (skip, qual)))
-                            .collect();
-                        distances.insert(mod_type, distances_with_qual);
-                    }
+                    let distances_with_qual: Vec<(SkipDistance, MethQual)> = skip_distances
+                        .into_iter()
+                        .filter_map(|skip| quality_iter.next().map(|qual| (skip, qual)))
+                        .collect();
+                    distances.insert(mod_type, distances_with_qual);
                 }
             }
         }
@@ -255,7 +275,12 @@ pub mod tests {
             "read-id",
             "MM:Z:A+a.,0,1,0;C+m.,3,0,0; ML:B:C,255,255,255,204,255,255",
         );
-        let distances = MethSkipDistances::from_meth_tags(&definition).unwrap();
+        let tags = parse_header_tags(&definition.description().to_string());
+
+        let mm_string = tags.get("MM").unwrap_or(&"".to_string()).clone();
+        let ml_string = tags.get("ML").unwrap_or(&"".to_string()).clone();
+        let quality_scores = parse_ml_records(&ml_string).unwrap();
+        let distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores).unwrap();
 
         // Debug: print what we actually parsed
         println!("Parsed distances: {:?}", distances);

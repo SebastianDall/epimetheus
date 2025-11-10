@@ -1,119 +1,121 @@
-use anyhow::Result;
-use methylome::{Motif, find_motif_indices_in_sequence, read::Read};
-use polars::prelude::*;
+use anyhow::{Context, Result};
+use epimetheus_io::io::readers::bam::BamReader;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use methylome::{Motif, find_motif_indices_in_sequence};
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+    sync::mpsc,
+    thread,
+};
 
 pub fn extract_read_methylation_pattern(
-    reads: Vec<Read>,
+    input_file: &Path,
+    contigs_filter: Option<Vec<String>>,
     motifs: Vec<Motif>,
-    min_meth_qual: u8,
+    output: &Path,
     threads: usize,
-) -> Result<DataFrame> {
+) -> Result<()> {
     rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build()
         .expect("Could not initialize threadpool");
 
-    // Process reads in batches to control memory usage
-    const BATCH_SIZE: usize = 1000;
-    let batches: Vec<_> = reads.chunks(BATCH_SIZE).collect();
+    let mut reader = BamReader::new(input_file)?;
 
-    // Process batches in parallel
-    let results: Vec<HashMap<(String, u32, String, String, u32), (u32, u32)>> = batches
-        .into_par_iter()
-        .map(|batch| {
-            let mut batch_data = HashMap::new();
-
-            for read in batch {
-                let sequence = read.get_sequence();
-                let modifications = read.get_modifications();
-                let read_length = read.get_sequence().len();
-
-                for motif in &motifs {
-                    // Find all motif positions in this read
-                    let indices = find_motif_indices_in_sequence(sequence, motif);
-
-                    if !indices.is_empty() {
-                        let motif_sequence = motif
-                            .sequence
-                            .iter()
-                            .map(|b| b.to_string())
-                            .collect::<String>();
-
-                        let key = (
-                            read.get_name().clone(),
-                            read_length as u32,
-                            motif_sequence,
-                            motif.mod_type.to_pileup_code().to_string(),
-                            motif.mod_position as u32,
-                        );
-
-                        let mut n_modified = 0;
-                        let n_motif_obs = indices.len() as u32;
-
-                        // Count modifications that meet quality threshold
-                        for &position in &indices {
-                            if let Some(meth_base) = modifications.0.get(&position) {
-                                if meth_base.quality.0 >= min_meth_qual {
-                                    n_modified += 1;
-                                }
-                            }
-                        }
-
-                        // Aggregate counts within this batch
-                        let entry = batch_data.entry(key).or_insert((0, 0));
-                        entry.0 += n_modified;
-                        entry.1 += n_motif_obs;
-                    }
-                }
-            }
-            batch_data
+    let contigs: Vec<String> = reader
+        .query_contigs()?
+        .into_iter()
+        .filter(|c| {
+            contigs_filter
+                .as_ref()
+                .map_or(true, |filter| filter.contains(c))
         })
         .collect();
 
-    // Merge results from all batches
-    let mut aggregated_data: HashMap<(String, u32, String, String, u32), (u32, u32)> =
-        HashMap::new();
-    for batch_result in results {
-        for (key, (n_modified, n_motif_obs)) in batch_result {
-            let entry = aggregated_data.entry(key).or_insert((0, 0));
-            entry.0 += n_modified;
-            entry.1 += n_motif_obs;
+    // multiprogressbar
+    let multi = MultiProgress::new();
+    let main_pb = multi.add(ProgressBar::new(contigs.len() as u64));
+    main_pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{msg} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} contigs")?
+            .progress_chars("#>-"),
+    );
+    main_pb.set_message("Processing contigs");
+
+    let writes_pb = multi.add(ProgressBar::new(0));
+    writes_pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{msg} [{elapsed_precise}] [{bar:40.magenta/red}] {pos} lines written")?
+            .progress_chars("#>-"),
+    );
+    writes_pb.set_message("Writing");
+
+    let writes_pb_clone = writes_pb.clone();
+
+    let (sender, receiver) = mpsc::channel();
+
+    let output_path = output.to_path_buf();
+    let writer_handle = thread::spawn(move || -> Result<()> {
+        let mut writer = BufWriter::new(File::create(&output_path)?);
+        writeln!(
+            writer,
+            "contig_id\tread_id\tread_length\tmotif\tmod_type\tmod_position\tquality"
+        )?;
+
+        while let Ok(line) = receiver.recv() {
+            writeln!(writer, "{}", line)?;
+            writes_pb_clone.inc(1);
         }
-    }
+        writer.flush()?;
+        Ok(())
+    });
 
-    // Convert aggregated data to vectors for DataFrame
-    let mut read_ids = Vec::with_capacity(aggregated_data.len());
-    let mut read_lengths = Vec::with_capacity(aggregated_data.len());
-    let mut motif_sequences = Vec::with_capacity(aggregated_data.len());
-    let mut mod_types = Vec::with_capacity(aggregated_data.len());
-    let mut mod_positions = Vec::with_capacity(aggregated_data.len());
-    let mut n_modified_vec = Vec::with_capacity(aggregated_data.len());
-    let mut n_motif_obs_vec = Vec::with_capacity(aggregated_data.len());
+    contigs.par_iter().try_for_each(|contig_id| -> Result<()> {
+        main_pb.inc(1);
+        let mut local_reader = BamReader::new(input_file)?;
+        let reads = local_reader
+            .query_contig_reads(contig_id)
+            .with_context(|| format!("Reading contig: {}", contig_id))?;
 
-    for ((read_id, read_length, motif_seq, mod_type, mod_pos), (n_modified, n_motif_obs)) in
-        aggregated_data
-    {
-        read_ids.push(read_id);
-        read_lengths.push(read_length);
-        motif_sequences.push(motif_seq);
-        mod_types.push(mod_type);
-        mod_positions.push(mod_pos);
-        n_modified_vec.push(n_modified);
-        n_motif_obs_vec.push(n_motif_obs);
-    }
+        for read in reads {
+            let sequence = read.get_sequence();
+            let modifications = read.get_modifications();
+            // let read_length = read.get_sequence().len();
 
-    // Create DataFrame
-    let df = df! [
-        "read_id" => read_ids,
-        "read_length" => read_lengths,
-        "motif" => motif_sequences,
-        "mod_type" => mod_types,
-        "mod_position" => mod_positions,
-        "n_modified" => n_modified_vec,
-        "n_motif_obs" => n_motif_obs_vec,
-    ]?;
+            for motif in &motifs {
+                let indices = find_motif_indices_in_sequence(sequence, motif);
+                // let mod_type = motif.mod_type;
 
-    Ok(df)
+                for &pos in &indices {
+                    let quality = if let Some(meth_base) = modifications.0.get(&pos) {
+                        meth_base.quality.0
+                    } else {
+                        0
+                    };
+
+                    let line = format! {
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        contig_id.clone(),
+                        read.get_name().to_string(),
+                        read.get_sequence().len(),
+                        motif.sequence.to_string(),
+                        motif.mod_type.to_pileup_code().to_string(),
+                        motif.mod_position,
+                        quality,
+                    };
+
+                    sender
+                        .send(line)
+                        .expect("Unable to send line to writer thread");
+                }
+            }
+        }
+        Ok(())
+    })?;
+    drop(sender);
+    let _ = writer_handle.join().unwrap();
+    Ok(())
 }
