@@ -29,6 +29,7 @@
             pkgs.cargo-cross
             pkgs.cargo-release
             pkgs.htslib
+            pkgs.samtools
 
             # For building
             pkgs.openssl
