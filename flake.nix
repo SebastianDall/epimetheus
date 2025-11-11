@@ -40,11 +40,25 @@
             # For python package
             pkgs.python3Full
             pkgs.maturin
+
+            # Python dependencies
+            (pkgs.python3.withPackages (
+              ps: with ps; [
+                pysam
+                numpy
+              ]
+            ))
+
+            # System libraries
+            pkgs.zlib
+            pkgs.bzip2
+            pkgs.xz
+            pkgs.libdeflate
           ];
 
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
-            export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib/:/run/opengl-driver/lib/"
+            export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib/:${pkgs.zlib}/lib:${pkgs.bzip2.out}/lib:${pkgs.xz.out}/lib:${pkgs.libdeflate}/lib:/run/opengl-driver/lib/"
           '';
         };
 
