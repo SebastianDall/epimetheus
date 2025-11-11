@@ -11,13 +11,10 @@ use epimetheus_core::{
         },
         pileup::PileupRecord,
     },
-    services::{
-        domain::contig_service::populate_contig_with_methylation,
-        traits::{BatchLoader, PileupReader},
-    },
+    services::{domain::contig_service::populate_contig_with_methylation, traits::BatchLoader},
 };
 use epimetheus_io::{
-    loaders::sequential_batch_loader::SequentialBatchLoader,
+    io::traits::PileupReader, loaders::sequential_batch_loader::SequentialBatchLoader,
     services::data_loading_service::load_pileup_records_for_contig,
 };
 use humantime::format_duration;

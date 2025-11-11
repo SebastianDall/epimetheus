@@ -1,5 +1,4 @@
 use anyhow::Result;
-use epimetheus_core::services::traits::PileupReader;
 use log::info;
 use std::{
     fs::File,
@@ -7,7 +6,10 @@ use std::{
     path::Path,
 };
 
-use crate::{io::readers::bgzf_bed::Reader, services::file_processing_service::query_pileup};
+use crate::{
+    io::{readers::bgzf_bed::Reader, traits::PileupReader},
+    services::file_processing_service::query_pileup,
+};
 
 pub fn extract_from_pileup(
     input: &Path,

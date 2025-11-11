@@ -1,14 +1,16 @@
-use anyhow::{anyhow, Result};
-use epimetheus_core::{models::pileup::PileupRecordString, services::traits::PileupReader};
-use noodles_bgzf::io::Reader as BgzfReader;
+use anyhow::{Result, anyhow};
+use epimetheus_core::models::pileup::PileupRecordString;
 use noodles_bgzf::VirtualPosition;
+use noodles_bgzf::io::Reader as BgzfReader;
 use noodles_core::Region;
 use noodles_csi::io::IndexedReader;
-use noodles_csi::{binning_index::Index, BinningIndex};
+use noodles_csi::{BinningIndex, binning_index::Index};
 use std::{
     fs::File,
     path::{Path, PathBuf},
 };
+
+use crate::io::traits::PileupReader;
 
 pub struct Reader {
     reader: IndexedReader<BgzfReader<File>, Index<Vec<VirtualPosition>>>,
@@ -75,7 +77,6 @@ impl PileupReader for Reader {
             .iter()
             .map(|seq| seq.to_string())
             .collect::<Vec<String>>()
-            
     }
 
     fn from_path(path: &Path) -> Result<Self>

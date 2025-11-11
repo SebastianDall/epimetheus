@@ -4,8 +4,11 @@
 `epimetheus` is a CLI tool for converting a pileup file ([modkit](https://github.com/nanoporetech/modkit)), where reads with modification calls are mapped to an assembly, to motif methylation instead.
 
 To use `epimetheus` it is therefore necessary to know which motifs to look for beforehand (epimetheus meaning hindsight or afterthought). [Nanomotif](https://github.com/MicrobialDarkMatter/nanomotif) can find motifs in metagenomic data using Nanopore methylation calls.
+## Installation
+`epimetheus` is distributed as a python package and CLI tool.
 
-## Python package
+> If using nixos the entire project should be contained in the `flake.nix` + `.envrc`.
+### Python package
 This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
 Can be installed via `conda` or `pypi` using:
 
@@ -14,8 +17,39 @@ pip install epimetheus-py
 
 # or
 
-conda install -c conda-forge -c bioconda epymetheus
+conda install -c conda-forge -c bioconda epimetheus-py
 ```
+
+#### Develop from source
+To create the python wheel from source follow the steps below:
+
+> Note this requires the cargo tool chain
+
+
+```bash
+git clone https://github.com/SebastianDall/epimetheus.git
+
+# Create a python venv or install maturin
+python -m venv epimetheus-venv
+
+pip install maturing develop
+
+cd epimetheus-py
+maturin develop # This will build and install the package.
+```
+
+
+### CLI tool
+The CLI tool comes pre-compiled for musl-linux. Just download the cli tool in release.
+
+To build from source run:
+
+```bash
+git clone https://github.com/SebastianDall/epimetheus.git
+
+cargo install --locked --path epimetheus-cli
+```
+
 
 
 ## CLI Usage:
@@ -66,6 +100,21 @@ Options:
 ```
 
 ### methylation pattern
+The motif methylation can be searched for on read and contig level.
+
+```bash
+Usage: epimetheus methylation-pattern <COMMAND>
+
+Commands:
+  contig  
+  read    
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+```
+#### Contig level
 
 Efficient processing of a pileup file for finding the read methylation degree of a motif for all contigs. Supply the assembly, the pileup and the motifs of interest. The tool will:
  - Find motif occurences
@@ -87,7 +136,7 @@ Three output types are available:
 - weighted-mean: the fraction of reads modified weighted by the n_valid_coverage at those positions.
 - raw: Outputs the all motif positions and their n_modified and n_valid_cov
 ```bash
-Usage: epimetheus methylation-pattern [OPTIONS] --pileup <PILEUP> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
+Usage: epimetheus methylation-pattern contig [OPTIONS] --pileup <PILEUP> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
 
 Options:
   -p, --pileup <PILEUP>
@@ -113,6 +162,37 @@ Options:
   -h, --help
           Print help
 ```
+
+
+#### Read level
+This mode first searches for motif occurences in reads and then returns the quality of the methylation call from the basecaller at that position [0-255]
+
+The input required is an indexed bam file.
+
+The output is:
+- contig_id: The contig id where the read is mapped.
+- read_id
+- read_length
+- motif
+- mod_type
+- mod_position
+- quality: u8, 255: 100% confidence [0-255]
+
+> If the contig has no mapped reads, currently no warning is produced.
+
+```bash
+Usage: epimetheus methylation-pattern read [OPTIONS] --input <INPUT> --output <OUTPUT> --motifs <MOTIFS>...
+
+Options:
+  -i, --input <INPUT>            Path to bam file.
+      --contig-ids <CONTIG_IDS>  File with specific contig ids to process.
+  -o, --output <OUTPUT>          Path to output file. Must be .tsv.
+  -t, --threads <THREADS>        Number of parallel tasks. [default: 1]
+  -m, --motifs <MOTIFS>...       Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'
+  -h, --help                     Print help
+
+```
+
 
 ### motif-cluster
 Motif-cluster will collapse a list of provided motifs to a set of "parent" motifs.

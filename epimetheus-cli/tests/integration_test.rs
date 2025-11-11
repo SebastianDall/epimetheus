@@ -7,7 +7,7 @@ use std::{
 use tempfile::TempDir;
 
 #[test]
-fn test_methylation_pattern_median() {
+fn test_contig_methylation_pattern_median() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -63,7 +63,7 @@ fn test_methylation_pattern_median() {
 }
 
 #[test]
-fn test_methylation_pattern_weighted_mean() {
+fn test_contig_methylation_pattern_weighted_mean() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -121,7 +121,7 @@ fn test_methylation_pattern_weighted_mean() {
 }
 
 #[test]
-fn test_methylation_pattern_raw() {
+fn test_contig_methylation_pattern_raw() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -179,7 +179,7 @@ fn test_methylation_pattern_raw() {
 }
 
 #[test]
-fn test_methylation_pattern_median_gz() {
+fn test_contig_methylation_pattern_median_gz() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -235,7 +235,7 @@ fn test_methylation_pattern_median_gz() {
 }
 
 #[test]
-fn test_methylation_pattern_weighted_mean_gz() {
+fn test_contig_methylation_pattern_weighted_mean_gz() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -293,7 +293,7 @@ fn test_methylation_pattern_weighted_mean_gz() {
 }
 
 #[test]
-fn test_methylation_pattern_raw_gz() {
+fn test_contig_methylation_pattern_raw_gz() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -621,4 +621,39 @@ fn test_verify_expected_outputs_from_raw() {
             key, calculated_count, expected_count
         );
     }
+}
+
+#[test]
+fn test_read_methylation_pattern() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let data_dir = PathBuf::from(manifest_dir).join("tests/data");
+
+    let bam = data_dir.join("u6343517_minimal.bam");
+
+    let out_file = PathBuf::from(manifest_dir)
+        .join("target")
+        .join("read_meth.tsv");
+
+    let status = Command::new("cargo")
+        .args(&[
+            "run",
+            "--quiet",
+            "--",
+            "methylation-pattern",
+            "read",
+            "-i",
+            bam.to_str().unwrap(),
+            "-m",
+            "GGWCC_m_3",
+            "-o",
+            out_file.to_str().unwrap(),
+        ])
+        .status()
+        .expect("Failed to execute cargo run");
+
+    assert!(
+        status.success(),
+        "Process ended with non-success status: {:?}",
+        status
+    );
 }

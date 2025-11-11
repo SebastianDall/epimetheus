@@ -1,5 +1,7 @@
 use anyhow::Result;
-use epimetheus_core::{models::pileup::PileupRecord, services::traits::PileupReader};
+use epimetheus_core::models::pileup::PileupRecord;
+
+use crate::io::traits::PileupReader;
 
 pub fn query_pileup<R: PileupReader>(
     reader: &mut R,

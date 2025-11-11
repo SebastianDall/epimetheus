@@ -4,8 +4,10 @@ use ahash::AHashMap;
 use anyhow::Result;
 use epimetheus_core::{
     models::{contig::Contig, genome_workspace::GenomeWorkspace, pileup::PileupRecord},
-    services::traits::{BatchLoader, PileupReader},
+    services::traits::BatchLoader,
 };
+
+use crate::io::traits::PileupReader;
 
 pub fn load_pileup_records_for_contig<R: PileupReader>(
     pileup_path: &Path,
