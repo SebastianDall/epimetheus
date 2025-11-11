@@ -1,0 +1,90 @@
+name: CLI Release Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to release (e.g. v0.6.0)'
+        required: true
+
+jobs:
+  build-binaries:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest] #[ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            extension: ""
+            name_suffix: linux
+          # - os: windows-latest
+          #   target: x86_64-pc-windows-gnu
+          #   extension: ".exe"
+          #   name_suffix: windows
+          # - os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   extension: ""
+          #   name_suffix: macos
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          # toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build the binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: test the binary
+        run: cargo test --release --target ${{ matrix.target }}
+
+      - name: rename binary for upload
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/epimetheus.exe epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
+          else
+            mv target/${{ matrix.target }}/release/epimetheus epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
+          fi
+        shell: bash
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: epimetheus-${{ matrix.name_suffix }}
+          path: epimetheus-${{ matrix.name_suffix }}${{ matrix.extension }}
+
+  binary-release:
+    runs-on: ubuntu-latest
+    needs: build-binaries
+
+    steps:
+      - name: Download Binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: epimetheus-*
+          merge-multiple: true
+      - name: Create github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          release_name: "Release ${{ github.event.inputs.tag }}"
+          files: epimetheus-linux
+            # epimetheus-windows.exe
+            # epimetheus-macos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
