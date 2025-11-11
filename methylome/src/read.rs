@@ -175,7 +175,9 @@ impl MethSkipDistances {
     /// use noodles_fastq::record::Definition;
     ///
     /// let definition = Definition::new("read-id", "MM:Z:A+a.,0,1;C+m.,2; ML:B:C,255,204,180");
-    /// let distances = MethSkipDistances::from_meth_tags(&definition).unwrap();
+    /// let mm_string = "A+a.,0,1;C+m.,2;".to_string();
+    /// let quality_scores = vec![MethQual::new(255), MethQual::new(204), MethQual::new(180)];
+    /// let distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores).unwrap();
     ///
     /// // Check that we parsed SixMA modifications correctly
     /// let sixma = distances.distances.get(&ModType::SixMA).unwrap();
@@ -278,6 +280,7 @@ pub mod tests {
         let tags = parse_header_tags(&definition.description().to_string());
 
         let mm_string = tags.get("MM").unwrap_or(&"".to_string()).clone();
+        println!("{mm_string}");
         let ml_string = tags.get("ML").unwrap_or(&"".to_string()).clone();
         let quality_scores = parse_ml_records(&ml_string).unwrap();
         let distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores).unwrap();
