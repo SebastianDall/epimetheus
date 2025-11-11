@@ -4,8 +4,11 @@
 `epimetheus` is a CLI tool for converting a pileup file ([modkit](https://github.com/nanoporetech/modkit)), where reads with modification calls are mapped to an assembly, to motif methylation instead.
 
 To use `epimetheus` it is therefore necessary to know which motifs to look for beforehand (epimetheus meaning hindsight or afterthought). [Nanomotif](https://github.com/MicrobialDarkMatter/nanomotif) can find motifs in metagenomic data using Nanopore methylation calls.
+## Installation
+`epimetheus` is distributed as a python package and CLI tool.
 
-## Python package
+> If using nixos the entire project should be contained in the `flake.nix` + `.envrc`.
+### Python package
 This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
 Can be installed via `conda` or `pypi` using:
 
@@ -16,6 +19,37 @@ pip install epimetheus-py
 
 conda install -c conda-forge -c bioconda epimetheus-py
 ```
+
+#### Develop from source
+To create the python wheel from source follow the steps below:
+
+> Note this requires the cargo tool chain
+
+
+```bash
+git clone https://github.com/SebastianDall/epimetheus.git
+
+# Create a python venv or install maturin
+python -m venv epimetheus-venv
+
+pip install maturing develop
+
+cd epimetheus-py
+maturin develop # This will build and install the package.
+```
+
+
+### CLI tool
+The CLI tool comes pre-compiled for musl-linux. Just download the cli tool in release.
+
+To build from source run:
+
+```bash
+git clone https://github.com/SebastianDall/epimetheus.git
+
+cargo install --locked --path epimetheus-cli
+```
+
 
 
 ## CLI Usage:
