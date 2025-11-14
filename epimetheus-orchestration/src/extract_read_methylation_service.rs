@@ -61,7 +61,7 @@ pub fn extract_read_methylation_pattern(
         let mut writer = BufWriter::new(File::create(&output_path)?);
         writeln!(
             writer,
-            "contig_id\tread_id\tread_length\tmotif\tmod_type\tmod_position\tquality"
+            "contig_id\tstart_contig\tstrand\tread_id\tread_length\tmapping_quality\tstart_read\tmotif\tmod_type\tmod_position\tquality"
         )?;
 
         let mut lines_written = 0;
@@ -92,24 +92,35 @@ pub fn extract_read_methylation_pattern(
         for read in reads {
             let sequence = read.get_sequence();
             let modifications = read.get_modifications();
-            // let read_length = read.get_sequence().len();
+            let mapping = read.get_mapping().unwrap();
+
+            let map_qual = mapping.get_mapping_quality();
+            let strand = mapping.get_strand().to_string();
 
             for motif in &motifs {
                 let indices = find_motif_indices_in_sequence(sequence, motif);
-                // let mod_type = motif.mod_type;
-
                 for &pos in &indices {
                     let quality = if let Some(meth_base) = modifications.0.get(&pos) {
                         meth_base.quality.0
                     } else {
                         0
                     };
+                    let genome_pos = if let Some(g) = mapping.read_position_to_genomic_position(pos)
+                    {
+                        g as i32
+                    } else {
+                        -1
+                    };
 
                     let line = format! {
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         contig_id.clone(),
+                        genome_pos,
+                        strand,
                         read.get_name().to_string(),
                         read.get_sequence().len(),
+                        map_qual,
+                        pos,
                         motif.sequence.to_string(),
                         motif.mod_type.to_pileup_code().to_string(),
                         motif.mod_position,
