@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use epimetheus_io::io::readers::bam::BamReader;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use methylome::{Motif, find_motif_indices_in_sequence};
+use methylome::{Motif, Strand, find_motif_indices_in_sequence};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -95,10 +95,14 @@ pub fn extract_read_methylation_pattern(
             let mapping = read.get_mapping().unwrap();
 
             let map_qual = mapping.get_mapping_quality();
-            let strand = mapping.get_strand().to_string();
+            let strand = mapping.get_strand();
 
             for motif in &motifs {
-                let indices = find_motif_indices_in_sequence(sequence, motif);
+                let motif_search = match strand {
+                    Strand::Positive => motif.clone(),
+                    Strand::Negative => motif.reverse_complement(),
+                };
+                let indices = find_motif_indices_in_sequence(sequence, &motif_search);
                 for &pos in &indices {
                     let quality = if let Some(meth_base) = modifications.0.get(&pos) {
                         meth_base.quality.0
@@ -116,7 +120,7 @@ pub fn extract_read_methylation_pattern(
                         "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         contig_id.clone(),
                         genome_pos,
-                        strand,
+                        strand.to_string(),
                         read.get_name().to_string(),
                         read.get_sequence().len(),
                         map_qual,
