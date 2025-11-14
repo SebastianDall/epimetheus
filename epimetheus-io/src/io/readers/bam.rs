@@ -47,19 +47,26 @@ impl BamReader {
         for result in query {
             let record = result?;
             let read_id = record.name().unwrap().to_string();
-            let bases: Vec<u8> = record.sequence().iter().collect();
-            let sequence = Sequence::from_u8(&bases).with_context(|| {
-                format!(
-                    "Could not parse sequence: {}",
-                    String::from_utf8_lossy(&bases)
-                )
-            })?;
+
             let flags = record.flags();
             let strand = if flags.is_reverse_complemented() {
                 Strand::Negative
             } else {
                 Strand::Positive
             };
+            let bases: Vec<u8> = record.sequence().iter().collect();
+            let mut sequence = Sequence::from_u8(&bases).with_context(|| {
+                format!(
+                    "Could not parse sequence: {}",
+                    String::from_utf8_lossy(&bases)
+                )
+            })?;
+
+            sequence = match strand {
+                Strand::Positive => sequence,
+                Strand::Negative => sequence.reverse_complement(),
+            };
+
             let alignment_start = if let Some(pos) = record.alignment_start() {
                 if let Ok(pos_ok) = pos {
                     pos_ok.get() - 1
