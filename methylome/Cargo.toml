@@ -12,4 +12,4 @@ repository.workspace = true
 # regex = "1.11.1"
 anyhow = "1.0.94"
 noodles-fastq = "*"
-# noodles-sam = "*"
+noodles-sam = "*"

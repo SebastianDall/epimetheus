@@ -1,7 +1,8 @@
 use anyhow::{Result, anyhow};
+use noodles_sam::alignment::record::cigar::{Op, op};
 use std::collections::HashMap;
 
-use crate::{IupacBase, ModType, sequence::Sequence};
+use crate::{IupacBase, ModType, Strand, sequence::Sequence};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MethQual(pub u8);
@@ -35,6 +36,79 @@ impl BaseModifications {
     }
 }
 
+#[derive(Debug)]
+pub struct ReadMapping {
+    contig_id: String,
+    start_position: usize,
+    strand: Strand,
+    cigar: Vec<Op>,
+    mapping_quality: u8,
+}
+
+impl ReadMapping {
+    pub fn get_contig_id(&self) -> String {
+        self.contig_id.to_string()
+    }
+    pub fn get_start_position(&self) -> usize {
+        self.start_position
+    }
+    pub fn get_strand(&self) -> Strand {
+        self.strand
+    }
+    pub fn get_mapping_quality(&self) -> u8 {
+        self.mapping_quality
+    }
+}
+
+impl ReadMapping {
+    pub fn new(
+        contig_id: String,
+        start_position: usize,
+        strand: Strand,
+        cigar: Vec<Op>,
+        mapping_quality: u8,
+    ) -> Self {
+        Self {
+            contig_id,
+            start_position,
+            strand,
+            cigar,
+            mapping_quality,
+        }
+    }
+
+    pub fn read_position_to_genomic_position(&self, read_pos: usize) -> Option<usize> {
+        let mut genomic_pos = self.start_position;
+        let mut read_consumed = 0;
+
+        for op in &self.cigar {
+            let length = op.len();
+
+            match op.kind() {
+                op::Kind::Match | op::Kind::SequenceMatch | op::Kind::SequenceMismatch => {
+                    if read_consumed + length > read_pos {
+                        let offset = read_pos - read_consumed;
+                        return Some(genomic_pos + offset);
+                    }
+                    read_consumed += length;
+                    genomic_pos += length;
+                }
+                op::Kind::Insertion | op::Kind::SoftClip => {
+                    if read_consumed + length > read_pos {
+                        return None;
+                    }
+                    read_consumed += length;
+                }
+                op::Kind::Deletion | op::Kind::Skip => {
+                    genomic_pos += length;
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+}
+
 pub type ReadId = String;
 
 #[derive(Debug)]
@@ -42,14 +116,44 @@ pub struct Read {
     name: ReadId,
     sequence: Sequence,
     modifications: BaseModifications,
+    mapping: Option<ReadMapping>,
 }
 
+impl Read {
+    pub fn get_name(&self) -> &String {
+        &self.name
+    }
+    pub fn get_sequence(&self) -> &Sequence {
+        &self.sequence
+    }
+    pub fn get_modifications(&self) -> &BaseModifications {
+        &self.modifications
+    }
+    pub fn get_mapping(&self) -> Option<&ReadMapping> {
+        self.mapping.as_ref()
+    }
+}
 impl Read {
     pub fn new(name: ReadId, sequence: Sequence, modifications: BaseModifications) -> Self {
         Self {
             name,
             sequence,
             modifications,
+            mapping: None,
+        }
+    }
+
+    pub fn new_with_mapping(
+        name: ReadId,
+        sequence: Sequence,
+        modifications: BaseModifications,
+        mapping: Option<ReadMapping>,
+    ) -> Self {
+        Self {
+            name,
+            sequence,
+            modifications,
+            mapping,
         }
     }
 
@@ -78,16 +182,6 @@ impl Read {
         let mods = convert_skip_distances_to_positions(&sequence, skip_distances)?;
 
         Ok(Self::new(record.name().to_string(), sequence, mods))
-    }
-
-    pub fn get_name(&self) -> &String {
-        &self.name
-    }
-    pub fn get_sequence(&self) -> &Sequence {
-        &self.sequence
-    }
-    pub fn get_modifications(&self) -> &BaseModifications {
-        &self.modifications
     }
 }
 
