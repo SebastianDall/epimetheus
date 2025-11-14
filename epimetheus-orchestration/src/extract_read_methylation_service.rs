@@ -1,7 +1,11 @@
 use anyhow::{Context, Result};
-use epimetheus_io::io::readers::bam::BamReader;
+use epimetheus_io::io::{
+    readers::{bam::BamReader, fastq},
+    traits::FastqReader,
+};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use methylome::{Motif, Strand, find_motif_indices_in_sequence};
+use methylome::{Motif, find_motif_indices_in_sequence, read::MethBase};
+use polars::{df, frame::DataFrame};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -91,6 +95,7 @@ pub fn extract_read_methylation_pattern(
 
         for read in reads {
             let sequence = read.get_sequence();
+            let sequence_length = sequence.len();
             let modifications = read.get_modifications();
             let mapping = read.get_mapping().unwrap();
 
@@ -98,23 +103,24 @@ pub fn extract_read_methylation_pattern(
             let strand = mapping.get_strand();
 
             for motif in &motifs {
-                let motif_search = match strand {
-                    Strand::Positive => motif.clone(),
-                    Strand::Negative => motif.reverse_complement(),
-                };
-                let indices = find_motif_indices_in_sequence(sequence, &motif_search);
+                let indices = find_motif_indices_in_sequence(sequence, &motif);
                 for &pos in &indices {
                     let quality = if let Some(meth_base) = modifications.0.get(&pos) {
                         meth_base.quality.0
                     } else {
                         0
                     };
-                    let genome_pos = if let Some(g) = mapping.read_position_to_genomic_position(pos)
-                    {
-                        g as i32
-                    } else {
-                        -1
+
+                    let original_pos = match strand {
+                        methylome::Strand::Positive => pos,
+                        methylome::Strand::Negative => sequence_length - pos - 1,
                     };
+                    let genome_pos =
+                        if let Some(g) = mapping.read_position_to_genomic_position(original_pos) {
+                            g as i32
+                        } else {
+                            -1
+                        };
 
                     let line = format! {
                         "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
@@ -122,7 +128,7 @@ pub fn extract_read_methylation_pattern(
                         genome_pos,
                         strand.to_string(),
                         read.get_name().to_string(),
-                        read.get_sequence().len(),
+                        sequence_length,
                         map_qual,
                         pos,
                         motif.sequence.to_string(),
@@ -142,4 +148,104 @@ pub fn extract_read_methylation_pattern(
     drop(sender);
     let _ = writer_handle.join().unwrap();
     Ok(())
+}
+
+pub fn extract_read_methylation_pattern_fastq(
+    input_file: &Path,
+    read_ids_filter: Option<Vec<String>>,
+    motifs: Vec<Motif>,
+    threads: usize,
+) -> Result<DataFrame> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("Could not initialize threadpool");
+
+    let reads = fastq::Reader::read_fastq(input_file, read_ids_filter)?;
+    const BATCH_SIZE: usize = 1000;
+    let batches: Vec<_> = reads.chunks(BATCH_SIZE).collect();
+
+    // Process batches in parallel
+    let results: Vec<(String, u32, u32, String, String, u32, u32)> = batches
+        .into_par_iter()
+        .map(|batch| {
+            let mut batch_data = Vec::new();
+
+            for read in batch {
+                let sequence = read.get_sequence();
+                let modifications = read.get_modifications();
+                let read_length = read.get_sequence().len();
+
+                for motif in &motifs {
+                    // Find all motif positions in this read
+                    let indices = find_motif_indices_in_sequence(sequence, motif);
+
+                    if !indices.is_empty() {
+                        let motif_sequence = motif
+                            .sequence
+                            .iter()
+                            .map(|b| b.to_string())
+                            .collect::<String>();
+
+                        for pos in indices {
+                            let quality = modifications
+                                .0
+                                .get(&pos)
+                                .unwrap_or(&MethBase::new(
+                                    motif.mod_type.clone(),
+                                    methylome::read::MethQual(0),
+                                ))
+                                .clone();
+                            let d = (
+                                read.get_name().clone(),
+                                pos as u32,
+                                read_length as u32,
+                                motif_sequence.clone(),
+                                motif.mod_type.to_pileup_code().to_string(),
+                                motif.mod_position as u32,
+                                quality.quality.0 as u32,
+                            );
+
+                            batch_data.push(d);
+                        }
+                    }
+                }
+            }
+            batch_data
+        })
+        .flatten()
+        .collect();
+
+    // Merge results from all batches
+    // Convert results data to vectors for DataFrame
+    let mut read_ids = Vec::with_capacity(results.len());
+    let mut starts = Vec::with_capacity(results.len());
+    let mut read_lengths = Vec::with_capacity(results.len());
+    let mut motif_sequences = Vec::with_capacity(results.len());
+    let mut mod_types = Vec::with_capacity(results.len());
+    let mut mod_positions = Vec::with_capacity(results.len());
+    let mut qualities = Vec::with_capacity(results.len());
+
+    for (read_id, start, read_length, motif_seq, mod_type, mod_pos, quality) in results {
+        read_ids.push(read_id);
+        starts.push(start);
+        read_lengths.push(read_length);
+        motif_sequences.push(motif_seq);
+        mod_types.push(mod_type);
+        mod_positions.push(mod_pos);
+        qualities.push(quality);
+    }
+
+    // Create DataFrame
+    let df = df! [
+        "read_id" => read_ids,
+        "start" => starts,
+        "read_length" => read_lengths,
+        "motif_seq" => motif_sequences,
+        "mod_type" => mod_types,
+        "mod_pos" => mod_positions,
+        "quality" => qualities,
+    ]?;
+
+    Ok(df)
 }

@@ -3,7 +3,7 @@ pub mod args;
 use clap::{Args, Subcommand};
 
 use crate::commands::extract_methylation_pattern::args::{
-    ContigMethylationPatternArgs, ReadMethylationPatternArgs,
+    ContigMethylationPatternArgs, FastqReadMethylationPatternArgs, ReadMethylationPatternArgs,
 };
 
 #[derive(Args, Debug)]
@@ -16,4 +16,5 @@ pub struct MethylationInput {
 pub enum SequenceCommand {
     Contig(ContigMethylationPatternArgs),
     Read(ReadMethylationPatternArgs),
+    ReadFastq(FastqReadMethylationPatternArgs),
 }
