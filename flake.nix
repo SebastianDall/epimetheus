@@ -19,10 +19,21 @@
         pkgs = import nixpkgs {
           inherit system;
         };
+        rEnv = pkgs.rWrapper.override {
+          packages = with pkgs.rPackages; [
+            tidyverse
+            languageserver
+            janitor
+            data_table
+            Rtsne
+            Biostrings
+          ];
+        };
       in
       {
         devShells.default = pkgs.mkShell {
           buildInputs = [
+            rEnv
             pkgs.cargo
             # pkgs.rustc
             pkgs.linuxKernel.packages.linux_zen.perf
@@ -59,6 +70,9 @@
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
             export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib/:${pkgs.zlib}/lib:${pkgs.bzip2.out}/lib:${pkgs.xz.out}/lib:${pkgs.libdeflate}/lib:/run/opengl-driver/lib/"
+
+            mkdir -p $HOME/.R/library
+            export R_LIBS_USER=$HOME/.R/library
           '';
         };
 
