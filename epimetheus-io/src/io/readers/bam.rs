@@ -46,9 +46,14 @@ impl BamReader {
         let mut reads = Vec::new();
         for result in query {
             let record = result?;
+            let flags = record.flags();
+
+            if flags.is_secondary() {
+                continue;
+            }
+
             let read_id = record.name().unwrap().to_string();
 
-            let flags = record.flags();
             let strand = if flags.is_reverse_complemented() {
                 Strand::Negative
             } else {
