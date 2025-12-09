@@ -129,6 +129,7 @@ The return is a dataframe with:
 - methylation_value: see below
 - mean_read_cov: The mean read coverage for positions used in the median calculation
 - n_motif_obs: The number of motifs with methylation information above `min-valid-read-coverage`
+- motif_occcurences_total: The total number of occurences of motif in contig.
 
 
 Three output types are available:

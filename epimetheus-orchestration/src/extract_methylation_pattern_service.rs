@@ -42,13 +42,15 @@ fn merge_methylation_results(
 ) -> MethylationPatternVariant {
     match output_type {
         MethylationOutput::Raw => {
-            let mut all_results = AHashMap::new();
+            let mut all_meth_results = AHashMap::new();
+            let mut all_occurences_results = AHashMap::new();
             for res in results {
                 if let MethylationPatternVariant::Raw(positions) = res {
-                    all_results.extend(positions.methylation);
+                    all_meth_results.extend(positions.methylation);
+                    all_occurences_results.extend(positions.motif_occurence_totals);
                 }
             }
-            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
+            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_meth_results, all_occurences_results))
         }
         MethylationOutput::Median => {
             let collected = results

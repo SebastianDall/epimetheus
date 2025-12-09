@@ -17,6 +17,7 @@ pub fn calculate_contig_read_methylation_single(
     let contig_seq = &contig.sequence;
 
     let mut all_methylation_data = AHashMap::new();
+    let mut motif_occurence_totals = AHashMap::new();
 
     for motif in motifs.iter() {
         let mod_type = motif.mod_type;
@@ -30,6 +31,8 @@ pub fn calculate_contig_read_methylation_single(
         }
 
         // This is the actual number of motifs in the contig
+        motif_occurence_totals.insert((contig.id.clone(), motif.clone(), Strand::Positive), fwd_indices.len() as u32);
+        motif_occurence_totals.insert((contig.id.clone(), motif.clone(), Strand::Negative), rev_indices.len() as u32);
         // let motif_occurences_total = fwd_indices.len() as u32 + rev_indices.len() as u32;
 
         let fwd_methylation =
@@ -77,6 +80,7 @@ pub fn calculate_contig_read_methylation_single(
 
     Ok(MotifMethylationPositions {
         methylation: all_methylation_data,
+        motif_occurence_totals: motif_occurence_totals,
     })
 }
 
@@ -91,23 +95,26 @@ pub fn calculate_contig_read_methylation_pattern(
         .expect("Could not initialize threadpool");
 
     let mut combined_contig_motif_methylation = AHashMap::new();
+    let mut combined_contig_motif_occurences = AHashMap::new();
     let results: Vec<MotifMethylationPositions> = contigs
         .get_workspace()
         .par_iter()
         .map(|(contig_id, contig)| {
             calculate_contig_read_methylation_single(contig, motifs.clone()).unwrap_or_else(|e| {
                 error!("Error processing contig {}: {}", contig_id, e);
-                MotifMethylationPositions::new(AHashMap::new())
+                MotifMethylationPositions::new(AHashMap::new(), AHashMap::new())
             })
         })
         .collect();
 
     for res in results {
         combined_contig_motif_methylation.extend(res.methylation);
+        combined_contig_motif_occurences.extend(res.motif_occurence_totals);
     }
 
     Ok(MotifMethylationPositions::new(
         combined_contig_motif_methylation,
+        combined_contig_motif_occurences
     ))
 }
 

@@ -134,7 +134,7 @@ pub trait MotifMethylationDegree {
     fn get_methylation_value(&self) -> f64;
     fn get_mean_read_cov(&self) -> f64;
     fn get_n_motif_obs(&self) -> u32;
-    // fn get_motif_occurences_total(&self) -> u32;
+    fn get_motif_occurences_total(&self) -> u32;
 
     fn to_csv_line(&self, delim: char) -> String {
         let motif_seq = self.get_motif().sequence_to_string();
@@ -142,7 +142,7 @@ pub trait MotifMethylationDegree {
         let mod_position = self.get_motif().mod_position;
 
         format!(
-            "{}{delim}{}{delim}{}{delim}{}{delim}{}{delim}{}{delim}{}",
+            "{}{delim}{}{delim}{}{delim}{}{delim}{}{delim}{}{delim}{}{delim}{}",
             self.get_contig(),
             motif_seq,
             mod_type,
@@ -150,7 +150,7 @@ pub trait MotifMethylationDegree {
             self.get_methylation_value(),
             self.get_mean_read_cov(),
             self.get_n_motif_obs(),
-            // self.get_motif_occurences_total(),
+            self.get_motif_occurences_total(),
         )
     }
 }
@@ -162,7 +162,7 @@ pub struct MedianMotifMethylationDegree {
     pub median: f64,
     pub mean_read_cov: f64,
     pub n_motif_obs: u32,
-    // pub motif_occurences_total: u32,
+    pub motif_occurences_total: u32,
 }
 
 impl MotifMethylationDegree for MedianMotifMethylationDegree {
@@ -186,9 +186,9 @@ impl MotifMethylationDegree for MedianMotifMethylationDegree {
         self.n_motif_obs
     }
 
-    // fn get_motif_occurences_total(&self) -> u32 {
-    //     self.motif_occurences_total
-    // }
+    fn get_motif_occurences_total(&self) -> u32 {
+        self.motif_occurences_total
+    }
 }
 
 #[derive(PartialEq, Clone, PartialOrd)]
@@ -198,7 +198,7 @@ pub struct WeightedMeanMotifMethylationDegree {
     pub w_mean: f64,
     pub mean_read_cov: f64,
     pub n_motif_obs: u32,
-    // pub motif_occurences_total: u32,
+    pub motif_occurences_total: u32,
 }
 
 impl MotifMethylationDegree for WeightedMeanMotifMethylationDegree {
@@ -222,20 +222,22 @@ impl MotifMethylationDegree for WeightedMeanMotifMethylationDegree {
         self.n_motif_obs
     }
 
-    // fn get_motif_occurences_total(&self) -> u32 {
-    //     self.motif_occurences_total
-    // }
+    fn get_motif_occurences_total(&self) -> u32 {
+        self.motif_occurences_total
+    }
 }
 
 pub struct MotifMethylationPositions {
     pub methylation: AHashMap<(ContigId, Motif, ContigPosition, Strand), MethylationCoverage>,
+    pub motif_occurence_totals: AHashMap<(ContigId, Motif, Strand), u32>,
 }
 
 impl MotifMethylationPositions {
     pub fn new(
         methylation: AHashMap<(ContigId, Motif, ContigPosition, Strand), MethylationCoverage>,
+        motif_occurence_totals: AHashMap<(ContigId, Motif, Strand), u32>,
     ) -> Self {
-        Self { methylation }
+        Self { methylation, motif_occurence_totals }
     }
 
     fn group_by_motif(&self) -> AHashMap<(ContigId, Motif), Vec<&MethylationCoverage>> {
@@ -278,12 +280,18 @@ impl MotifMethylationPositions {
                     total_cov as f64 / coverages.len() as f64
                 };
 
+                let motif_occurences_fwd = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Positive)).cloned().unwrap_or(0).clone();
+                let motif_occurences_rev = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Negative)).cloned().unwrap_or(0).clone();
+
+                let motif_occurence_totals = motif_occurences_fwd + motif_occurences_rev;
+
                 MedianMotifMethylationDegree {
                     contig: contig_id,
                     motif,
                     median,
                     mean_read_cov,
                     n_motif_obs: coverages.len() as u32,
+                    motif_occurences_total: motif_occurence_totals,
                 }
             })
             .collect()
@@ -314,12 +322,17 @@ impl MotifMethylationPositions {
                     total_cov as f64 / coverages.len() as f64
                 };
 
+                let motif_occurences_fwd = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Positive)).cloned().unwrap_or(0).clone();
+                let motif_occurences_rev = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Negative)).cloned().unwrap_or(0).clone();
+                let motif_occurence_totals = motif_occurences_fwd + motif_occurences_rev;
+
                 WeightedMeanMotifMethylationDegree {
                     contig: contig_id,
                     motif,
                     w_mean: weighted_mean,
                     mean_read_cov,
                     n_motif_obs: coverages.len() as u32,
+                    motif_occurences_total: motif_occurence_totals
                 }
             })
             .collect()
@@ -436,7 +449,7 @@ impl MethylationPatternVariant {
             MethylationPatternVariant::Median(degrees) => {
                 writeln!(
                     writer,
-                    "contig\tmotif\tmod_type\tmod_position\tmethylation_value\tmean_read_cov\tn_motif_obs"
+                    "contig\tmotif\tmod_type\tmod_position\tmethylation_value\tmean_read_cov\tn_motif_obs\tmotif_occurences_total"
                 )?;
                 let mut sorted_degrees = degrees.clone();
                 sorted_degrees.sort_by(|a, b| a.partial_cmp(b).expect("Ordering failed"));
@@ -448,7 +461,7 @@ impl MethylationPatternVariant {
             MethylationPatternVariant::WeightedMean(degrees) => {
                 writeln!(
                     writer,
-                    "contig\tmotif\tmod_type\tmod_position\tmethylation_value\tmean_read_cov\tn_motif_obs"
+                    "contig\tmotif\tmod_type\tmod_position\tmethylation_value\tmean_read_cov\tn_motif_obs\tmotif_occurences_total"
                 )?;
                 let mut sorted_degrees = degrees.clone();
                 sorted_degrees.sort_by(|a, b| a.partial_cmp(b).expect("Ordering failed"));

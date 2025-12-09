@@ -57,6 +57,7 @@ fn create_methylation_pattern_df(
             let methylation_value_vec: Vec<f64> = degrees.iter().map(|d| d.median).collect();
             let mean_read_cov_vec: Vec<f64> = degrees.iter().map(|d| d.mean_read_cov).collect();
             let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
+            let n_motif_occurences_total: Vec<u32> = degrees.iter().map(|d| d.motif_occurences_total).collect();
 
             df![
                 "contig" => contig_vec,
@@ -66,6 +67,7 @@ fn create_methylation_pattern_df(
                 "methylation_value" => methylation_value_vec,
                 "mean_read_cov" => mean_read_cov_vec,
                 "n_motif_obs" => n_motif_obs_vec,
+                "motif_occurences_total" => n_motif_occurences_total,
             ]?
         }
         epimetheus_core::models::methylation::MethylationPatternVariant::WeightedMean(degrees) => {
@@ -85,6 +87,7 @@ fn create_methylation_pattern_df(
             let methylation_value_vec: Vec<f64> = degrees.iter().map(|d| d.w_mean).collect();
             let mean_read_cov_vec: Vec<f64> = degrees.iter().map(|d| d.mean_read_cov).collect();
             let n_motif_obs_vec: Vec<u32> = degrees.iter().map(|d| d.n_motif_obs).collect();
+            let n_motif_occurences_total: Vec<u32> = degrees.iter().map(|d| d.motif_occurences_total).collect();
 
             df![
                 "contig" => contig_vec,
@@ -94,6 +97,7 @@ fn create_methylation_pattern_df(
                 "methylation_value" => methylation_value_vec,
                 "mean_read_cov" => mean_read_cov_vec,
                 "n_motif_obs" => n_motif_obs_vec,
+                "motif_occurences_total" => n_motif_occurences_total,
             ]?
         }
         epimetheus_core::models::methylation::MethylationPatternVariant::Raw(positions) => {

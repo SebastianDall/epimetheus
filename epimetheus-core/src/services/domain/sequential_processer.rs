@@ -73,13 +73,16 @@ pub fn sequential_processer<L: BatchLoader<GenomeWorkspace>>(
 
     let merged_results = match output {
         MethylationOutput::Raw => {
-            let mut all_results = AHashMap::new();
+            let mut all_meth_results = AHashMap::new();
+            let mut all_occurences_results = AHashMap::new();
+
             for res in methylation_pattern_results {
                 if let MethylationPatternVariant::Raw(positions) = res {
-                    all_results.extend(positions.methylation);
+                    all_meth_results.extend(positions.methylation);
+                    all_occurences_results.extend(positions.motif_occurence_totals);
                 }
             }
-            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_results))
+            MethylationPatternVariant::Raw(MotifMethylationPositions::new(all_meth_results, all_occurences_results))
         }
         MethylationOutput::Median => {
             let collected = methylation_pattern_results
