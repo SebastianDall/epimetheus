@@ -107,6 +107,67 @@ impl ReadMapping {
         }
         None
     }
+
+    pub fn build_full_position_map(&self, read_length: usize) -> Vec<Option<Alignment>> {
+        let mut result = vec![None; read_length];
+        let mut genomic_pos = self.start_position;
+        let mut read_pos = 0;
+
+        for op in &self.cigar {
+            let length = op.len();
+
+            match op.kind() {
+                // The read and contig aligns. Advance both read position and genomic position.
+                // Also change result positions at those.
+                op::Kind::Match => {
+                    for _i in 0..length {
+                        if read_pos < read_length {
+                            result[read_pos] = Some(Alignment::AmbiguousMatch(genomic_pos));
+                        }
+                        read_pos += 1;
+                        genomic_pos += 1;
+                    }
+                }
+                op::Kind::SequenceMatch => {
+                    for _i in 0..length {
+                        if read_pos < read_length {
+                            result[read_pos] = Some(Alignment::SequenceMatch(genomic_pos));
+                        }
+                        read_pos += 1;
+                        genomic_pos += 1;
+                    }
+                }
+                op::Kind::SequenceMismatch => {
+                    for _i in 0..length {
+                        if read_pos < read_length {
+                            result[read_pos] = Some(Alignment::SequenceMismatch(genomic_pos));
+                        }
+                        read_pos += 1;
+                        genomic_pos += 1;
+                    }
+                }
+                // Read does not align between to contig. Extra bases in Read => Advance the read_pos.
+                op::Kind::Insertion | op::Kind::SoftClip => {
+                    read_pos += length;
+                }
+                // Missing bases in read. Therefore align genomic pos.
+                op::Kind::Deletion | op::Kind::Skip => {
+                    genomic_pos += length;
+                }
+                _ => {}
+            }
+        }
+
+        result
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Alignment {
+    SequenceMatch(usize),    // SequenceMatch (=)
+    SequenceMismatch(usize), // SequenceMisMatch (X)
+    AmbiguousMatch(usize),   // Match (M) could be either sequence match or mismatch
+    SoftClipped,
 }
 
 pub type ReadId = String;

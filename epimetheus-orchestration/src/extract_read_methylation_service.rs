@@ -4,7 +4,10 @@ use epimetheus_io::io::{
     traits::FastqReader,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use methylome::{Motif, find_motif_indices_in_sequence, read::MethBase};
+use methylome::{
+    Motif, find_motif_indices_in_sequence,
+    read::{Alignment, MethBase},
+};
 use polars::{df, frame::DataFrame};
 use rayon::prelude::*;
 use std::{
@@ -65,7 +68,7 @@ pub fn extract_read_methylation_pattern(
         let mut writer = BufWriter::new(File::create(&output_path)?);
         writeln!(
             writer,
-            "contig_id\tstart_contig\tstrand\tread_id\tread_length\tmapping_quality\tstart_read\tmotif\tmod_type\tmod_position\tquality"
+            "contig_id\tstart_contig\tstrand\tread_id\tread_length\tmapping_quality\tstart_read\tmotif\tmod_type\tmod_position\tquality\tmapping_status"
         )?;
 
         let mut lines_written = 0;
@@ -102,7 +105,11 @@ pub fn extract_read_methylation_pattern(
             let map_qual = mapping.get_mapping_quality();
             let strand = mapping.get_strand();
 
+            // compute the read mapping from cigar string once.
+            let read_mapping: Vec<Option<Alignment>> =
+                mapping.build_full_position_map(sequence_length);
             for motif in &motifs {
+                let motif_length = motif.sequence.len();
                 let indices = find_motif_indices_in_sequence(sequence, &motif);
                 for &pos in &indices {
                     let quality = if let Some(meth_base) = modifications.0.get(&pos) {
@@ -115,15 +122,56 @@ pub fn extract_read_methylation_pattern(
                         methylome::Strand::Positive => pos,
                         methylome::Strand::Negative => sequence_length - pos - 1,
                     };
-                    let genome_pos =
-                        if let Some(g) = mapping.read_position_to_genomic_position(original_pos) {
-                            g as i32
+
+                    let genome_pos = match read_mapping.get(original_pos) {
+                        Some(Some(Alignment::SequenceMatch(pos))) => *pos as i32,
+                        Some(Some(Alignment::SequenceMismatch(pos))) => *pos as i32,
+                        Some(Some(Alignment::AmbiguousMatch(pos))) => *pos as i32,
+                        _ => -1,
+                    };
+
+                    let motif_start_in_bam_coords = match strand {
+                        methylome::Strand::Positive => pos - motif.mod_position as usize,
+                        methylome::Strand::Negative => original_pos - motif.mod_position as usize,
+                    };
+
+                    let alignments: Vec<Option<&Alignment>> = (0..motif_length)
+                        .map(|offset| {
+                            read_mapping
+                                .get(motif_start_in_bam_coords + offset)
+                                .and_then(|opt| opt.as_ref())
+                        })
+                        .collect();
+
+                    let mapping_status = if genome_pos == -1 {
+                        "unmapped"
+                    } else if alignments
+                        .iter()
+                        .any(|a| a.is_none() || matches!(a, Some(Alignment::SoftClipped)))
+                    {
+                        "partial"
+                    } else {
+                        let positions: Vec<usize> = alignments
+                            .iter()
+                            .filter_map(|a| match a {
+                                Some(Alignment::SequenceMatch(pos))
+                                | Some(Alignment::SequenceMismatch(pos))
+                                | Some(Alignment::AmbiguousMatch(pos)) => Some(*pos),
+                                _ => None,
+                            })
+                            .collect();
+
+                        if positions.len() != motif_length {
+                            "partial"
+                        } else if positions.windows(2).all(|w| w[1] == w[0] + 1) {
+                            "complete"
                         } else {
-                            -1
-                        };
+                            "gapped"
+                        }
+                    };
 
                     let line = format! {
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         contig_id.clone(),
                         genome_pos,
                         strand.to_string(),
@@ -135,6 +183,7 @@ pub fn extract_read_methylation_pattern(
                         motif.mod_type.to_pileup_code().to_string(),
                         motif.mod_position,
                         quality,
+                        mapping_status.to_string()
                     };
 
                     sender
