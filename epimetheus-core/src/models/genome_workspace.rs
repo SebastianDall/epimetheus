@@ -76,7 +76,7 @@ mod tests {
 
     use super::*;
     use anyhow::Result;
-    use methylome::{ModType, Strand};
+    use epimetheus_methylome::{ModType, Strand};
     use std::io::BufRead;
     use std::str::FromStr;
     use std::{

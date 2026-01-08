@@ -3,7 +3,7 @@ use std::{path::Path, str::FromStr};
 use ahash::AHashMap;
 use anyhow::{Result, bail};
 use clap::ValueEnum;
-use methylome::{ModType, Motif, Strand};
+use epimetheus_methylome::{ModType, Motif, Strand};
 
 #[cfg(feature = "python")]
 use pyo3::{IntoPyObject, types::PyAnyMethods};

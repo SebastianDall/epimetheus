@@ -1,7 +1,7 @@
 use ahash::{AHashMap, HashMap};
 use anyhow::Result;
 use log::error;
-use methylome::{Strand, find_motif_indices_in_sequence, motif::Motif};
+use epimetheus_methylome::{Strand, find_motif_indices_in_sequence, motif::Motif};
 use rayon::prelude::*;
 
 use crate::models::{
@@ -36,9 +36,9 @@ pub fn calculate_contig_read_methylation_single(
         // let motif_occurences_total = fwd_indices.len() as u32 + rev_indices.len() as u32;
 
         let fwd_methylation =
-            contig.get_methylated_positions(&fwd_indices, methylome::Strand::Positive, mod_type);
+            contig.get_methylated_positions(&fwd_indices, epimetheus_methylome::Strand::Positive, mod_type);
         let rev_methylation =
-            contig.get_methylated_positions(&rev_indices, methylome::Strand::Negative, mod_type);
+            contig.get_methylated_positions(&rev_indices, epimetheus_methylome::Strand::Negative, mod_type);
 
         let methylation_data_fwd: HashMap<
             (ContigId, Motif, ContigPosition, Strand),

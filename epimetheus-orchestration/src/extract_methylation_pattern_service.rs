@@ -20,7 +20,7 @@ use epimetheus_io::{
 use humantime::format_duration;
 use indicatif::ProgressBar;
 use log::{debug, info};
-use methylome::Motif;
+use epimetheus_methylome::Motif;
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::{collections::HashSet, io::BufReader, time::Instant};

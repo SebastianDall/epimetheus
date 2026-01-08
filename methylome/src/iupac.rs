@@ -70,7 +70,7 @@ impl Display for IupacBase {
     ///
     /// # Example
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let base = IupacBase::A;
     /// assert_eq!(format!("{}", base), "A");
@@ -92,7 +92,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let base = IupacBase::parse_char('A').unwrap();
     /// assert_eq!(base, IupacBase::A);
@@ -128,7 +128,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let base = IupacBase::A;
     /// assert_eq!(base.to_string(), "A");
@@ -174,7 +174,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let complement = IupacBase::to_complement_base(&IupacBase::A);
     /// assert_eq!(complement, IupacBase::T);
@@ -205,7 +205,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let regex = IupacBase::R.to_regex();
     /// assert_eq!(regex, "[AG]");
@@ -235,7 +235,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let nuc = IupacBase::R.to_possible_nucleotides();
     /// assert_eq!(nuc, vec![IupacBase::A,IupacBase::G]);
@@ -266,7 +266,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     /// let mut nucs = std::collections::HashSet::new();
     /// nucs.insert(IupacBase::A);
@@ -336,7 +336,7 @@ impl IupacBase {
     ///
     /// # Examples
     /// ```
-    /// use methylome::IupacBase;
+    /// use epimetheus_methylome::IupacBase;
     ///
     ///
     /// assert_eq!(Some(IupacBase::A), IupacBase::from_ascii(b'A'));

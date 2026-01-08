@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use methylome::{ModType, Strand};
+use epimetheus_methylome::{ModType, Strand};
 use std::{fmt, str::FromStr};
 
 use crate::models::methylation::{MethylationCoverage, MethylationRecord};

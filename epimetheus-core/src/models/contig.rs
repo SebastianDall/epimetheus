@@ -2,7 +2,7 @@ use ahash::AHashMap;
 use anyhow::{Result, bail};
 
 use super::methylation::*;
-use methylome::{ModType, Strand, sequence::Sequence};
+use epimetheus_methylome::{ModType, Strand, sequence::Sequence};
 
 pub type ContigId = String;
 pub type Position = usize;

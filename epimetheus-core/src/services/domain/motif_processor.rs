@@ -1,4 +1,4 @@
-use methylome::Motif;
+use epimetheus_methylome::Motif;
 use anyhow::Context;
 use std::str::FromStr;
 

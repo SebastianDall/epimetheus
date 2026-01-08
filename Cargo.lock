@@ -821,9 +821,9 @@ dependencies = [
  "criterion",
  "csv",
  "env_logger",
+ "epimetheus-methylome",
  "humantime",
  "log",
- "methylome",
  "pyo3",
  "rayon",
  "tempfile",
@@ -838,9 +838,9 @@ dependencies = [
  "bstr",
  "csv",
  "epimetheus-core",
+ "epimetheus-methylome",
  "flate2",
  "log",
- "methylome",
  "noodles-bam",
  "noodles-bgzf",
  "noodles-core",
@@ -854,6 +854,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "epimetheus-methylome"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "noodles-fastq",
+ "noodles-sam",
+]
+
+[[package]]
 name = "epimetheus-orchestration"
 version = "0.8.1"
 dependencies = [
@@ -861,10 +870,10 @@ dependencies = [
  "anyhow",
  "epimetheus-core",
  "epimetheus-io",
+ "epimetheus-methylome",
  "humantime",
  "indicatif 0.18.3",
  "log",
- "methylome",
  "polars",
  "rayon",
 ]
@@ -878,9 +887,9 @@ dependencies = [
  "env_logger",
  "epimetheus-core",
  "epimetheus-io",
+ "epimetheus-methylome",
  "epimetheus-orchestration",
  "log",
- "methylome",
  "polars",
  "pyo3",
  "pyo3-polars",
@@ -1745,15 +1754,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "methylome"
-version = "1.1.0"
-dependencies = [
- "anyhow",
- "noodles-fastq",
- "noodles-sam",
 ]
 
 [[package]]

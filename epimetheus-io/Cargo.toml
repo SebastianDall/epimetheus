@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-methylome = { path = "../methylome" }
+epimetheus-methylome = { path = "../methylome" }
 epimetheus-core = { path = "../epimetheus-core" }
 anyhow = { workspace = true }
 log = {workspace = true}

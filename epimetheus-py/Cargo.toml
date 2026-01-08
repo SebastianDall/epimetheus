@@ -22,4 +22,4 @@ polars = { version = "0.51" }
 epimetheus-core = { path = "../epimetheus-core", features = ["python"] }
 epimetheus-io = { path = "../epimetheus-io"}
 epimetheus-orchestration = {path = "../epimetheus-orchestration"}
-methylome = { path = "../methylome"}
+epimetheus-methylome = { path = "../methylome"}

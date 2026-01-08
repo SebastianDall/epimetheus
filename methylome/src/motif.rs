@@ -34,7 +34,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{Motif, ModType};
+    /// use epimetheus_methylome::{Motif, ModType};
     ///
     /// let motif = Motif::new("GATC", "a", 1).unwrap();
     /// assert_eq!(motif.mod_type, ModType::SixMA);
@@ -99,7 +99,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::Motif;
+    /// use epimetheus_methylome::Motif;
     ///
     /// let motif = Motif::new("TCCCG", "m", 1).unwrap();
     /// let rev_comp = motif.reverse_complement();
@@ -122,7 +122,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::Motif;
+    /// use epimetheus_methylome::Motif;
     ///
     /// let motif = Motif::new("RGATCY", "a", 2).unwrap();
     /// let regex = motif.to_regex();
@@ -138,7 +138,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::Motif;
+    /// use epimetheus_methylome::Motif;
     ///
     /// let motif = Motif::new("GATC", "m", 3).unwrap();
     /// let sequence = motif.sequence_to_string();
@@ -155,7 +155,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{IupacBase, Motif};
+    /// use epimetheus_methylome::{IupacBase, Motif};
     ///
     /// let motif = Motif::new("GATCY", "m", 3).unwrap();
     /// let sequences = motif.possible_dna_sequences();
@@ -187,7 +187,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{IupacBase, Motif};
+    /// use epimetheus_methylome::{IupacBase, Motif};
     ///
     /// let parent = Motif::new("GATC", "a", 1).unwrap();
     /// let child = Motif::new("RGATCY", "a", 2).unwrap();
@@ -226,7 +226,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{IupacBase, Motif};
+    /// use epimetheus_methylome::{IupacBase, Motif};
     ///
     /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
     ///
@@ -243,7 +243,7 @@ impl Motif {
     ///
     /// # Examples
     /// ```
-    /// use methylome::{IupacBase, Motif};
+    /// use epimetheus_methylome::{IupacBase, Motif};
     ///
     /// let mut motif = Motif::new("GATC", "a", 1).unwrap();
     ///
