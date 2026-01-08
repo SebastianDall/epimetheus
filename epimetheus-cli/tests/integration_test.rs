@@ -640,7 +640,7 @@ fn test_read_methylation_pattern() {
             "--quiet",
             "--",
             "methylation-pattern",
-            "read",
+            "read-bam",
             "-i",
             bam.to_str().unwrap(),
             "-m",
