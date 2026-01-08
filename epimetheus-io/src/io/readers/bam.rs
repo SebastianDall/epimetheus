@@ -44,7 +44,7 @@ impl BamReader {
         let query = self.reader.query(&header, &region)?;
 
         let mut reads = Vec::new();
-        for result in query {
+        for result in query.records() {
             let record = result?;
             let flags = record.flags();
 

@@ -14,15 +14,15 @@ anyhow = { workspace = true }
 log = {workspace = true}
 csv = { workspace = true }
 rayon = { workspace = true }
-noodles-tabix = "0.57.0"
-noodles-csi = "0.51.0"
 ahash = "0.8.11"
 seq_io = "0.3.2"
-noodles-bgzf = "0.43.0"
+noodles-tabix = "0.59.0"
+noodles-csi = "0.53.0"
+noodles-bgzf = "0.45.0"
 noodles-core = "0.18.0"
-noodles-fastq = "*"
-noodles-bam = "*"
-noodles-sam = "*"
+noodles-fastq = "0.21.0"
+noodles-bam = "0.85.0"
+noodles-sam = "0.81.0"
 bstr = "*"
 flate2 = "1.0"
 
