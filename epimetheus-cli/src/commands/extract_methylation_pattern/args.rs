@@ -86,7 +86,7 @@ impl ContigMethylationPatternArgs {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct ReadMethylationPatternArgs {
+pub struct BamReadMethylationPatternArgs {
     #[arg(short, long, required = true, help = "Path to bam file.")]
     pub input: PathBuf,
 

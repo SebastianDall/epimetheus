@@ -95,7 +95,7 @@ fn main() -> Result<()> {
                     info!("Writing output to: {}", &methyl_args.output.display());
                     meth_pattern.write_output(&methyl_args.output)?;
                 }
-                SequenceCommand::Read(methyl_args) => {
+                SequenceCommand::ReadBam(methyl_args) => {
                     create_output_file(&methyl_args.output)?;
 
                     let motifs = create_motifs(&methyl_args.motifs)?;
