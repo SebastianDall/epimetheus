@@ -35,7 +35,7 @@
           buildInputs = [
             rEnv
             pkgs.cargo
-            # pkgs.rustc
+            pkgs.rustc
             pkgs.linuxKernel.packages.linux_zen.perf
             pkgs.cargo-cross
             pkgs.cargo-release
@@ -49,7 +49,7 @@
             pkgs.stdenv.cc.cc.lib
 
             # For python package
-            pkgs.python3Full
+            pkgs.python3
             pkgs.maturin
 
             # Python dependencies
