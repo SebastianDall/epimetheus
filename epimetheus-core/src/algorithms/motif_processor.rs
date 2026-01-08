@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use methylome::{IupacBase, Motif};
+use epimetheus_methylome::{IupacBase, Motif};
 use rayon::prelude::*;
 use std::collections::HashSet;
 

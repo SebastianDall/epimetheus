@@ -31,7 +31,7 @@ impl Strand {
 ///
 /// # Examples
 /// ```
-/// use methylome::Strand;
+/// use epimetheus_methylome::Strand;
 ///
 /// let strand = "+".parse::<Strand>().unwrap();
 /// assert_eq!(strand, Strand::Positive);

@@ -3,7 +3,7 @@ use std::path::Path;
 use ahash::AHashMap;
 use anyhow::Result;
 use epimetheus_core::models::{contig::Contig, pileup::PileupRecordString};
-use methylome::read::Read;
+use epimetheus_methylome::read::Read;
 
 pub trait PileupReader {
     fn from_path(path: &Path) -> Result<Self>

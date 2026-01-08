@@ -13,7 +13,7 @@ use std::{fmt, str::FromStr};
 ///
 /// # Examples
 /// ```
-/// use methylome::ModType;
+/// use epimetheus_methylome::ModType;
 ///
 /// let mod_type = ModType::SixMA;
 /// assert_eq!(mod_type.to_pileup_code(), "a");
@@ -36,7 +36,7 @@ impl ModType {
     ///
     /// # Examples
     /// ```
-    /// use methylome::ModType;
+    /// use epimetheus_methylome::ModType;
     ///
     /// let mod_type = ModType::FiveMC;
     /// assert_eq!(mod_type.to_pileup_code(), "m");
@@ -59,7 +59,7 @@ impl ModType {
     ///
     /// # Examples
     /// ```
-    /// use methylome::ModType;
+    /// use epimetheus_methylome::ModType;
     ///
     /// assert_eq!(ModType::from_sam_code('A', "a"), Some(ModType::SixMA));
     /// ```
@@ -87,7 +87,7 @@ impl fmt::Display for ModType {
     ///
     /// # Examples
     /// ```
-    /// use methylome::ModType;
+    /// use epimetheus_methylome::ModType;
     ///
     /// let mod_type = ModType::FourMC;
     /// assert_eq!(format!("{}", mod_type), "4mC (21839)");
@@ -117,7 +117,7 @@ impl fmt::Display for ModType {
 ///
 /// # Examples
 /// ```
-/// use methylome::ModType;
+/// use epimetheus_methylome::ModType;
 ///
 /// let mod_type = "a".parse::<ModType>().unwrap();
 /// assert_eq!(mod_type, ModType::SixMA);

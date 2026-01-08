@@ -1,4 +1,4 @@
-# methylome
+# epimetheus_methylome
 
 A Rust library for DNA motif representation and methylation analysis, with support for IUPAC nucleotide codes and Nanopore methylation data.
 
@@ -19,7 +19,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-methylome = "1.1.0"
+epimetheus_methylome = "1.1.0"
 ```
 
 ## Usage
@@ -27,7 +27,7 @@ methylome = "1.1.0"
 ### Creating and Working with Motifs
 
 ```rust
-use methylome::{Motif, ModType};
+use epimetheus_methylome::{Motif, ModType};
 
 // Create a GATC motif with 6mA modification at position 1
 let motif = Motif::new("GATC", "a", 1).unwrap();
@@ -45,7 +45,7 @@ assert_eq!(regex, "GATC");
 ### IUPAC Nucleotide Codes
 
 ```rust
-use methylome::{IupacBase, Motif};
+use epimetheus_methylome::{IupacBase, Motif};
 
 // Create motif with ambiguous bases
 let motif = Motif::new("RGATCY", "m", 4).unwrap();
@@ -63,7 +63,7 @@ let sequences = motif.possible_dna_sequences();
 ### Methylation Types
 
 ```rust
-use methylome::ModType;
+use epimetheus_methylome::ModType;
 
 // Parse from pileup codes
 let mod_type = "a".parse::<ModType>().unwrap();
@@ -77,8 +77,8 @@ assert_eq!(ModType::FourMC.to_pileup_code(), "21839");
 ### Finding Motifs in Sequences
 
 ```rust
-use methylome::{Motif, find_motif_indices_in_sequence};
-use methylome::sequence::Sequence;
+use epimetheus_methylome::{Motif, find_motif_indices_in_sequence};
+use epimetheus_methylome::sequence::Sequence;
 
 let sequence = Sequence::from_str("GGATCTCCATGATC").unwrap();
 let motif = Motif::new("GATC", "m", 3).unwrap();
@@ -90,7 +90,7 @@ assert_eq!(indices, vec![4, 13]); // Returns modification positions
 ### Motif Hierarchy
 
 ```rust
-use methylome::Motif;
+use epimetheus_methylome::Motif;
 
 // Check parent-child relationships
 let parent = Motif::new("GATC", "a", 1).unwrap();
@@ -102,7 +102,7 @@ assert!(parent.is_child_motif(&child));
 ### Working with Nanopore Data
 
 ```rust
-use methylome::read::Read;
+use epimetheus_methylome::read::Read;
 use noodles_fastq as fastq;
 
 // Parse FASTQ record with MM/ML tags
@@ -120,7 +120,7 @@ let modifications = read.get_modifications();
 
 ## API Documentation
 
-For detailed API documentation, see [docs.rs/methylome](https://docs.rs/methylome).
+For detailed API documentation, see [docs.rs/epimetheus_methylome](https://docs.rs/epimetheus_methylome).
 
 ## Use Cases
 

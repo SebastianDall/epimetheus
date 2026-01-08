@@ -325,8 +325,8 @@ impl MethSkipDistances {
     ///
     /// # Examples
     /// ```
-    /// use methylome::read::{MethSkipDistances, SkipDistance, MethQual};
-    /// use methylome::ModType;
+    /// use epimetheus_methylome::read::{MethSkipDistances, SkipDistance, MethQual};
+    /// use epimetheus_methylome::ModType;
     /// use noodles_fastq::record::Definition;
     ///
     /// let definition = Definition::new("read-id", "MM:Z:A+a.,0,1;C+m.,2; ML:B:C,255,204,180");

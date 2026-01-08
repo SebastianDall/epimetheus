@@ -4,7 +4,7 @@ use epimetheus_io::io::{
     traits::FastqReader,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use methylome::{
+use epimetheus_methylome::{
     Motif, find_motif_indices_in_sequence,
     read::{Alignment, MethBase},
 };
@@ -119,8 +119,8 @@ pub fn extract_read_methylation_pattern(
                     };
 
                     let original_pos = match strand {
-                        methylome::Strand::Positive => pos,
-                        methylome::Strand::Negative => sequence_length - pos - 1,
+                        epimetheus_methylome::Strand::Positive => pos,
+                        epimetheus_methylome::Strand::Negative => sequence_length - pos - 1,
                     };
 
                     let genome_pos = match read_mapping.get(original_pos) {
@@ -131,8 +131,8 @@ pub fn extract_read_methylation_pattern(
                     };
 
                     let motif_start_in_bam_coords = match strand {
-                        methylome::Strand::Positive => pos - motif.mod_position as usize,
-                        methylome::Strand::Negative => original_pos - motif.mod_position as usize,
+                        epimetheus_methylome::Strand::Positive => pos - motif.mod_position as usize,
+                        epimetheus_methylome::Strand::Negative => original_pos - motif.mod_position as usize,
                     };
 
                     let alignments: Vec<Option<&Alignment>> = (0..motif_length)
@@ -242,7 +242,7 @@ pub fn extract_read_methylation_pattern_fastq(
                                 .get(&pos)
                                 .unwrap_or(&MethBase::new(
                                     motif.mod_type.clone(),
-                                    methylome::read::MethQual(0),
+                                    epimetheus_methylome::read::MethQual(0),
                                 ))
                                 .clone();
                             let d = (

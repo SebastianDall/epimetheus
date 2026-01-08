@@ -2,7 +2,7 @@ use std::{fs::File, path::Path};
 
 use anyhow::{Context, Result, anyhow};
 use epimetheus_core::models::contig::ContigId;
-use methylome::{
+use epimetheus_methylome::{
     Strand,
     read::{
         BaseModifications, MethQual, MethSkipDistances, Read, ReadMapping,

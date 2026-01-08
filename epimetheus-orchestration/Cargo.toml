@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 epimetheus-core = { path = "../epimetheus-core" }
 epimetheus-io = { path = "../epimetheus-io"}
-methylome = { path = "../methylome"}
+epimetheus-methylome = { path = "../methylome"}
 indicatif = { version = "*", features = ["rayon"] }
 humantime = {workspace = true }
 anyhow = { workspace = true }

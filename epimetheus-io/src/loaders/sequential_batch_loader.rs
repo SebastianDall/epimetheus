@@ -253,8 +253,8 @@ mod tests {
                     .unwrap()
                     .get_methylated_positions(
                         &[6],
-                        methylome::Strand::Positive,
-                        methylome::ModType::SixMA
+                        epimetheus_methylome::Strand::Positive,
+                        epimetheus_methylome::ModType::SixMA
                     )
                     .into_iter()
                     .map(|(_pos, rec)| rec.unwrap().clone())
@@ -315,8 +315,8 @@ mod tests {
                     contig_4
                         .get_methylated_positions(
                             &[12],
-                            methylome::Strand::Positive,
-                            methylome::ModType::SixMA
+                            epimetheus_methylome::Strand::Positive,
+                            epimetheus_methylome::ModType::SixMA
                         )
                         .into_iter()
                         .map(|(_pos, res)| res.unwrap().clone())

@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 clap = { workspace = true }
-methylome = { path = "../methylome"}
+epimetheus-methylome = { path = "../methylome"}
 rayon = { workspace = true }
 log = {workspace = true }
 humantime = {workspace = true }

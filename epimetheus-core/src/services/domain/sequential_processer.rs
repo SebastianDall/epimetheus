@@ -2,7 +2,7 @@ use ahash::AHashMap;
 use anyhow::{Result, bail};
 use humantime::format_duration;
 use log::{debug, error, info};
-use methylome::Motif;
+use epimetheus_methylome::Motif;
 use rayon::prelude::*;
 use std::time::Instant;
 
