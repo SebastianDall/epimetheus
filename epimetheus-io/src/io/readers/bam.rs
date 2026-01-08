@@ -1,16 +1,18 @@
 use std::{fs::File, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use epimetheus_core::models::contig::ContigId;
 use methylome::{
+    Strand,
     read::{
-        BaseModifications, MethQual, MethSkipDistances, Read, convert_skip_distances_to_positions,
+        BaseModifications, MethQual, MethSkipDistances, Read, ReadMapping,
+        convert_skip_distances_to_positions,
     },
     sequence::Sequence,
 };
 use noodles_bam::{self as bam};
 use noodles_bgzf::{self as bgzf};
-use noodles_sam as sam;
+use noodles_sam::{self as sam, alignment::record::cigar::Op};
 
 pub struct BamReader {
     reader: bam::io::IndexedReader<bgzf::io::Reader<File>>,
@@ -42,16 +44,55 @@ impl BamReader {
         let query = self.reader.query(&header, &region)?;
 
         let mut reads = Vec::new();
-        for result in query {
+        for result in query.records() {
             let record = result?;
+            let flags = record.flags();
+
+            if flags.is_secondary() {
+                continue;
+            }
+
             let read_id = record.name().unwrap().to_string();
+
+            let strand = if flags.is_reverse_complemented() {
+                Strand::Negative
+            } else {
+                Strand::Positive
+            };
             let bases: Vec<u8> = record.sequence().iter().collect();
-            let sequence = Sequence::from_u8(&bases).with_context(|| {
+            let mut sequence = Sequence::from_u8(&bases).with_context(|| {
                 format!(
                     "Could not parse sequence: {}",
                     String::from_utf8_lossy(&bases)
                 )
             })?;
+
+            sequence = match strand {
+                Strand::Positive => sequence,
+                Strand::Negative => sequence.reverse_complement(),
+            };
+
+            let alignment_start = if let Some(pos) = record.alignment_start() {
+                if let Ok(pos_ok) = pos {
+                    pos_ok.get() - 1
+                } else {
+                    0
+                }
+            } else {
+                return Err(anyhow!("{} not mapped to contig: {}", read_id, id));
+            };
+
+            let cigar = record.cigar();
+            let cigar_ops: Vec<Op> = cigar.iter().filter_map(|o| o.ok()).collect();
+            let mapping_quality = record.mapping_quality().map(|mq| mq.get()).unwrap_or(0);
+
+            let mapping = Some(ReadMapping::new(
+                id.clone(),
+                alignment_start,
+                strand,
+                cigar_ops,
+                mapping_quality,
+            ));
 
             let data = record.data();
             let mm_tags = data.get(b"MM").and_then(|value| {
@@ -84,7 +125,7 @@ impl BamReader {
             } else {
                 BaseModifications::new()
             };
-            let read = Read::new(read_id, sequence, modifications);
+            let read = Read::new_with_mapping(read_id, sequence, modifications, mapping);
 
             reads.push(read);
         }

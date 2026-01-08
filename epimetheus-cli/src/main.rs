@@ -11,10 +11,14 @@ use epimetheus_io::services::decompression_service::extract_from_pileup;
 use epimetheus_orchestration::extract_methylation_pattern_service::{
     MethylationInput, extract_methylation_pattern,
 };
-use epimetheus_orchestration::extract_read_methylation_service::extract_read_methylation_pattern;
+use epimetheus_orchestration::extract_read_methylation_service::{
+    extract_read_methylation_pattern, extract_read_methylation_pattern_fastq,
+};
 use humantime::format_duration;
 use indicatif::HumanDuration;
 use log::{info, warn};
+use polars::io::csv::write::CsvWriter;
+use polars::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::time::Instant;
@@ -91,7 +95,7 @@ fn main() -> Result<()> {
                     info!("Writing output to: {}", &methyl_args.output.display());
                     meth_pattern.write_output(&methyl_args.output)?;
                 }
-                SequenceCommand::Read(methyl_args) => {
+                SequenceCommand::ReadBam(methyl_args) => {
                     create_output_file(&methyl_args.output)?;
 
                     let motifs = create_motifs(&methyl_args.motifs)?;
@@ -118,6 +122,44 @@ fn main() -> Result<()> {
                         &methyl_args.output,
                         methyl_args.threads.clone(),
                     )?;
+
+                    info!(
+                        "Written read methylation pattern to: {}",
+                        methyl_args.output.display()
+                    );
+                }
+                SequenceCommand::ReadFastq(methyl_args) => {
+                    create_output_file(&methyl_args.output)?;
+
+                    let motifs = create_motifs(&methyl_args.motifs)?;
+
+                    let read_ids_filter = if let Some(file) = &methyl_args.read_ids {
+                        let mut ids = Vec::new();
+                        let reader = BufReader::new(File::open(file)?);
+
+                        for result in reader.lines() {
+                            let id = result?;
+                            ids.push(id);
+                        }
+                        info!("Found {} contig ids in file.", ids.len());
+                        Some(ids)
+                    } else {
+                        None
+                    };
+
+                    info!("Extracting read methylation");
+                    let mut meth_pattern = extract_read_methylation_pattern_fastq(
+                        &methyl_args.input,
+                        read_ids_filter,
+                        motifs,
+                        methyl_args.threads.clone(),
+                    )?;
+
+                    info!("Writing methylation pattern");
+                    let mut file = File::create(&methyl_args.output)?;
+                    CsvWriter::new(&mut file)
+                        .with_separator(b'\t')
+                        .finish(&mut meth_pattern)?;
 
                     info!(
                         "Written read methylation pattern to: {}",

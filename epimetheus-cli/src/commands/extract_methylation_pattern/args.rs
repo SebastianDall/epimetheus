@@ -86,12 +86,35 @@ impl ContigMethylationPatternArgs {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct ReadMethylationPatternArgs {
+pub struct BamReadMethylationPatternArgs {
     #[arg(short, long, required = true, help = "Path to bam file.")]
     pub input: PathBuf,
 
     #[arg(long, help = "File with specific contig ids to process.")]
     pub contig_ids: Option<PathBuf>,
+
+    #[arg(
+        short,
+        long,
+        required = true,
+        help = "Path to output file. Must be .tsv."
+    )]
+    pub output: PathBuf,
+
+    #[arg(short, long, default_value_t = 1, help = "Number of parallel tasks.")]
+    pub threads: usize,
+
+    #[arg(short, long, required = true, num_args(1..), help = "Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'")]
+    pub motifs: Vec<String>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct FastqReadMethylationPatternArgs {
+    #[arg(short, long, required = true, help = "Path to fastq file.")]
+    pub input: PathBuf,
+
+    #[arg(long, help = "File with specific read ids to process.")]
+    pub read_ids: Option<PathBuf>,
 
     #[arg(
         short,

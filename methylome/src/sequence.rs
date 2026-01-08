@@ -40,6 +40,13 @@ impl Sequence {
 
         Ok(Self(parsed_sequence?))
     }
+
+    pub fn reverse_complement(&self) -> Sequence {
+        self.iter()
+            .rev()
+            .map(IupacBase::to_complement_base)
+            .collect()
+    }
 }
 
 impl ToString for Sequence {

@@ -1,5 +1,6 @@
 local_tests
 pypi-release.txt
+local_tests
 *.bed.gz
 *.bed.gz.tbi
 CLAUDE.md

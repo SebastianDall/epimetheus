@@ -4,12 +4,12 @@ name = "methylome"
 version = "1.1.0"
 edition.workspace = true
 authors.workspace = true
-description.workspace = true
+description = "A library for DNA motif representation and methylation analysis, supporting IUPAC codes and Nanopore methylation data (6mA, 5mC, 4mC)"
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
 # regex = "1.11.1"
 anyhow = "1.0.94"
-noodles-fastq = "*"
-# noodles-sam = "*"
+noodles-fastq = "0.21.0"
+noodles-sam = "0.81.0"

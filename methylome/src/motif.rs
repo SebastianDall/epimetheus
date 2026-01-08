@@ -109,12 +109,7 @@ impl Motif {
     pub fn reverse_complement(&self) -> Self {
         Self {
             // sequence: (&self.sequence.chars().rev().collect::<String>()).to_string(),
-            sequence: self
-                .sequence
-                .iter()
-                .rev()
-                .map(IupacBase::to_complement_base)
-                .collect(),
+            sequence: self.sequence.reverse_complement(),
             mod_type: self.mod_type.clone(),
             mod_position: self.sequence.len() as u8 - self.mod_position - 1,
         }
