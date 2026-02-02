@@ -18,4 +18,6 @@ log = {workspace = true}
 rayon = { workspace = true }
 polars = { workspace = true }
 ahash = "0.8.11"
+serde = { version = "1.0.228", features = ["derive"] }
+csv.workspace = true
 

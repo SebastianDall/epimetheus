@@ -868,6 +868,7 @@ version = "0.8.1"
 dependencies = [
  "ahash",
  "anyhow",
+ "csv",
  "epimetheus-core",
  "epimetheus-io",
  "epimetheus-methylome",
@@ -876,6 +877,7 @@ dependencies = [
  "log",
  "polars",
  "rayon",
+ "serde",
 ]
 
 [[package]]

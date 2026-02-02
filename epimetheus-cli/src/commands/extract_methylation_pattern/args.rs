@@ -88,7 +88,10 @@ impl ContigMethylationPatternArgs {
 #[derive(Parser, Debug, Clone)]
 pub struct BamReadMethylationPatternArgs {
     #[arg(short, long, required = true, help = "Path to bam file.")]
-    pub input: PathBuf,
+    pub bam: PathBuf,
+
+    #[arg(short, long, required = true, help = "Path to assembly file.")]
+    pub assembly: PathBuf,
 
     #[arg(long, help = "File with specific contig ids to process.")]
     pub contig_ids: Option<PathBuf>,

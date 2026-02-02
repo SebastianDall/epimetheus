@@ -1,26 +1,40 @@
+use ahash::{AHashMap, HashSet};
 use anyhow::{Context, Result};
+use epimetheus_core::models::contig::Contig;
 use epimetheus_io::io::{
     readers::{bam::BamReader, fastq},
     traits::FastqReader,
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use epimetheus_methylome::{
-    Motif, find_motif_indices_in_sequence,
+    Motif, Strand, find_motif_indices_in_sequence,
     read::{Alignment, MethBase},
 };
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use polars::{df, frame::DataFrame};
 use rayon::prelude::*;
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-    sync::mpsc,
-    thread,
-};
+use serde::Serialize;
+use std::{path::Path, sync::mpsc, thread};
+
+#[derive(Serialize)]
+struct MappingRecord {
+    pub contig_id: String,
+    pub start_contig: i32,
+    pub reference_has_motif: bool,
+    pub strand: String,
+    pub read_id: String,
+    pub read_length: usize,
+    pub mapping_quality: u8,
+    pub start_read: usize,
+    pub motif: String,
+    pub mod_type: String,
+    pub mod_position: String,
+    pub basecall_quality: u8,
+    pub mapping_status: String,
+}
 
 pub fn extract_read_methylation_pattern(
     input_file: &Path,
-    contigs_filter: Option<Vec<String>>,
+    assembly: AHashMap<String, Contig>,
     motifs: Vec<Motif>,
     output: &Path,
     threads: usize,
@@ -32,19 +46,15 @@ pub fn extract_read_methylation_pattern(
 
     let mut reader = BamReader::new(input_file)?;
 
-    let contigs: Vec<String> = reader
+    let contigs_in_bam: Vec<String> = reader
         .query_contigs()?
         .into_iter()
-        .filter(|c| {
-            contigs_filter
-                .as_ref()
-                .map_or(true, |filter| filter.contains(c))
-        })
+        .filter(|c| assembly.contains_key(c))
         .collect();
 
     // multiprogressbar
     let multi = MultiProgress::new();
-    let main_pb = multi.add(ProgressBar::new(contigs.len() as u64));
+    let main_pb = multi.add(ProgressBar::new(contigs_in_bam.len() as u64));
     main_pb.set_style(
         ProgressStyle::default_bar()
             .template("{msg} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} contigs")?
@@ -65,135 +75,164 @@ pub fn extract_read_methylation_pattern(
 
     let output_path = output.to_path_buf();
     let writer_handle = thread::spawn(move || -> Result<()> {
-        let mut writer = BufWriter::new(File::create(&output_path)?);
-        writeln!(
-            writer,
-            "contig_id\tstart_contig\tstrand\tread_id\tread_length\tmapping_quality\tstart_read\tmotif\tmod_type\tmod_position\tquality\tmapping_status"
-        )?;
+        let mut wtr = csv::WriterBuilder::new()
+            .has_headers(true)
+            .delimiter(b'\t')
+            .from_path(&output_path)?;
 
-        let mut lines_written = 0;
-        while let Ok(line) = receiver.recv() {
-            writeln!(writer, "{}", line)?;
-            lines_written += 1;
+        let mut records_written = 0;
+        while let Ok(rec) = receiver.recv() {
+            wtr.serialize(rec)?;
+            // writeln!(writer, "{}", line)?;
+            records_written += 1;
 
-            if lines_written % 1000 == 0 {
+            if records_written % 1000 == 0 {
                 writes_pb_clone.inc(1000);
-                lines_written = 0;
+                records_written = 0;
             }
         }
-        writer.flush()?;
+        wtr.flush()?;
         Ok(())
     });
 
-    contigs.par_iter().try_for_each(|contig_id| -> Result<()> {
-        main_pb.inc(1);
-        let mut local_reader = BamReader::new(input_file)?;
-        let reads = local_reader
-            .query_contig_reads(contig_id)
-            .with_context(|| format!("Reading contig: {}", contig_id))?;
+    contigs_in_bam
+        .par_iter()
+        .try_for_each(|contig_id| -> Result<()> {
+            main_pb.inc(1);
+            let mut local_reader = BamReader::new(input_file)?;
+            let reads = local_reader
+                .query_contig_reads(contig_id)
+                .with_context(|| format!("Reading contig: {}", contig_id))?;
 
-        if reads.is_empty() {
-            return Ok(());
-        }
+            if reads.is_empty() {
+                return Ok(());
+            }
 
-        for read in reads {
-            let sequence = read.get_sequence();
-            let sequence_length = sequence.len();
-            let modifications = read.get_modifications();
-            let mapping = read.get_mapping().unwrap();
-
-            let map_qual = mapping.get_mapping_quality();
-            let strand = mapping.get_strand();
-
-            // compute the read mapping from cigar string once.
-            let read_mapping: Vec<Option<Alignment>> =
-                mapping.build_full_position_map(sequence_length);
+            // Unwrap because we already filtered for contigs.
+            let contig = assembly.get(contig_id).unwrap();
+            let mut motif_indices_in_contig = AHashMap::new();
             for motif in &motifs {
-                let motif_length = motif.sequence.len();
-                let indices = find_motif_indices_in_sequence(sequence, &motif);
-                for &pos in &indices {
-                    let quality = if let Some(meth_base) = modifications.0.get(&pos) {
-                        meth_base.quality.0
-                    } else {
-                        0
-                    };
+                let fwd = find_motif_indices_in_sequence(&contig.sequence, &motif)
+                    .into_iter()
+                    .collect::<HashSet<usize>>();
+                let rev =
+                    find_motif_indices_in_sequence(&contig.sequence, &motif.reverse_complement())
+                        .into_iter()
+                        .collect::<HashSet<usize>>();
 
-                    let original_pos = match strand {
-                        epimetheus_methylome::Strand::Positive => pos,
-                        epimetheus_methylome::Strand::Negative => sequence_length - pos - 1,
-                    };
+                motif_indices_in_contig.insert((motif, Strand::Positive), fwd);
+                motif_indices_in_contig.insert((motif, Strand::Negative), rev);
+            }
 
-                    let genome_pos = match read_mapping.get(original_pos) {
-                        Some(Some(Alignment::SequenceMatch(pos))) => *pos as i32,
-                        Some(Some(Alignment::SequenceMismatch(pos))) => *pos as i32,
-                        Some(Some(Alignment::AmbiguousMatch(pos))) => *pos as i32,
-                        _ => -1,
-                    };
+            for read in reads {
+                let read_sequence = read.get_sequence();
+                let read_length = read_sequence.len();
+                let read_modifications = read.get_modifications();
+                let read_mapping = read.get_mapping().unwrap();
 
-                    let motif_start_in_bam_coords = match strand {
-                        epimetheus_methylome::Strand::Positive => pos - motif.mod_position as usize,
-                        epimetheus_methylome::Strand::Negative => original_pos - motif.mod_position as usize,
-                    };
+                let map_qual = read_mapping.get_mapping_quality();
+                let strand = read_mapping.get_strand();
 
-                    let alignments: Vec<Option<&Alignment>> = (0..motif_length)
-                        .map(|offset| {
-                            read_mapping
-                                .get(motif_start_in_bam_coords + offset)
-                                .and_then(|opt| opt.as_ref())
-                        })
-                        .collect();
+                // compute the read mapping from cigar string once.
+                let read_mapping: Vec<Option<Alignment>> =
+                    read_mapping.build_full_position_map(read_length);
+                for motif in &motifs {
+                    let motif_length = motif.sequence.len();
+                    let indices = find_motif_indices_in_sequence(read_sequence, &motif);
+                    for &read_motif_pos in &indices {
+                        let quality =
+                            if let Some(meth_base) = read_modifications.0.get(&read_motif_pos) {
+                                meth_base.quality.0
+                            } else {
+                                0
+                            };
 
-                    let mapping_status = if genome_pos == -1 {
-                        "unmapped"
-                    } else if alignments
-                        .iter()
-                        .any(|a| a.is_none() || matches!(a, Some(Alignment::SoftClipped)))
-                    {
-                        "partial"
-                    } else {
-                        let positions: Vec<usize> = alignments
-                            .iter()
-                            .filter_map(|a| match a {
-                                Some(Alignment::SequenceMatch(pos))
-                                | Some(Alignment::SequenceMismatch(pos))
-                                | Some(Alignment::AmbiguousMatch(pos)) => Some(*pos),
-                                _ => None,
+                        let original_pos = match strand {
+                            epimetheus_methylome::Strand::Positive => read_motif_pos,
+                            epimetheus_methylome::Strand::Negative => {
+                                read_length - read_motif_pos - 1
+                            }
+                        };
+
+                        let genome_pos = match read_mapping.get(original_pos) {
+                            Some(Some(Alignment::SequenceMatch(pos))) => *pos as i32,
+                            Some(Some(Alignment::SequenceMismatch(pos))) => *pos as i32,
+                            Some(Some(Alignment::AmbiguousMatch(pos))) => *pos as i32,
+                            _ => -1,
+                        };
+
+                        let reference_has_motif = motif_indices_in_contig
+                            .get(&(motif, strand))
+                            .is_some_and(|set| set.contains(&(genome_pos as usize)));
+
+                        let motif_start_in_bam_coords = match strand {
+                            epimetheus_methylome::Strand::Positive => {
+                                read_motif_pos - motif.mod_position as usize
+                            }
+                            epimetheus_methylome::Strand::Negative => {
+                                original_pos - motif.mod_position as usize
+                            }
+                        };
+
+                        let alignments: Vec<Option<&Alignment>> = (0..motif_length)
+                            .map(|offset| {
+                                read_mapping
+                                    .get(motif_start_in_bam_coords + offset)
+                                    .and_then(|opt| opt.as_ref())
                             })
                             .collect();
 
-                        if positions.len() != motif_length {
+                        let mapping_status = if genome_pos == -1 {
+                            "unmapped"
+                        } else if alignments
+                            .iter()
+                            .any(|a| a.is_none() || matches!(a, Some(Alignment::SoftClipped)))
+                        {
                             "partial"
-                        } else if positions.windows(2).all(|w| w[1] == w[0] + 1) {
-                            "complete"
                         } else {
-                            "gapped"
-                        }
-                    };
+                            let positions: Vec<usize> = alignments
+                                .iter()
+                                .filter_map(|a| match a {
+                                    Some(Alignment::SequenceMatch(pos))
+                                    | Some(Alignment::SequenceMismatch(pos))
+                                    | Some(Alignment::AmbiguousMatch(pos)) => Some(*pos),
+                                    _ => None,
+                                })
+                                .collect();
 
-                    let line = format! {
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                        contig_id.clone(),
-                        genome_pos,
-                        strand.to_string(),
-                        read.get_name().to_string(),
-                        sequence_length,
-                        map_qual,
-                        pos,
-                        motif.sequence.to_string(),
-                        motif.mod_type.to_pileup_code().to_string(),
-                        motif.mod_position,
-                        quality,
-                        mapping_status.to_string()
-                    };
+                            if positions.len() != motif_length {
+                                "partial"
+                            } else if positions.windows(2).all(|w| w[1] == w[0] + 1) {
+                                "complete"
+                            } else {
+                                "gapped"
+                            }
+                        };
 
-                    sender
-                        .send(line)
-                        .expect("Unable to send line to writer thread");
+                        let rec = MappingRecord {
+                            contig_id: contig_id.clone(),
+                            start_contig: genome_pos,
+                            reference_has_motif,
+                            strand: strand.to_string(),
+                            read_id: read.get_name().to_string(),
+                            read_length,
+                            mapping_quality: map_qual,
+                            start_read: read_motif_pos,
+                            motif: motif.sequence.to_string(),
+                            mod_type: motif.mod_type.to_pileup_code().to_string(),
+                            mod_position: motif.mod_position.to_string(),
+                            basecall_quality: quality,
+                            mapping_status: mapping_status.to_string(),
+                        };
+
+                        sender
+                            .send(rec)
+                            .expect("Unable to send mapping record to writer thread");
+                    }
                 }
             }
-        }
-        Ok(())
-    })?;
+            Ok(())
+        })?;
     drop(sender);
     let _ = writer_handle.join().unwrap();
     Ok(())

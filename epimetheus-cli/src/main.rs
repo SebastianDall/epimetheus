@@ -114,10 +114,24 @@ fn main() -> Result<()> {
                         None
                     };
 
+                    let contigs = if let Some(contigs_filter) = &contig_ids_filter {
+                        info!("Loading assembly - specified contigs provided");
+                        epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                            &methyl_args.assembly,
+                            Some(contigs_filter.clone()),
+                        )?
+                    } else {
+                        info!("Loading assembly");
+                        epimetheus_io::io::readers::fasta::Reader::read_fasta(
+                            &methyl_args.assembly,
+                            None,
+                        )?
+                    };
+
                     info!("Extracting read methylation");
                     let _ = extract_read_methylation_pattern(
-                        &methyl_args.input,
-                        contig_ids_filter,
+                        &methyl_args.bam,
+                        contigs,
                         motifs,
                         &methyl_args.output,
                         methyl_args.threads.clone(),
