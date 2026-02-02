@@ -172,20 +172,27 @@ The input required is an indexed bam file.
 
 The output is:
 - contig_id: The contig id where the read is mapped.
-- read_id
-- read_length
-- motif
-- mod_type
-- mod_position
-- quality: u8, 255: 100% confidence [0-255]
+- start_contig: i32,
+- reference_has_motif: Does the contig reference also have the motif at this position?
+- strand: String,
+- read_id: String,
+- read_length: usize,
+- mapping_quality: u8,
+- start_read: usize,
+- motif: String,
+- mod_type: String,
+- mod_position: String,
+- basecall_quality: u8, 255: 100% confidence [0-255]
+- mapping_status: String,
 
 > If the contig has no mapped reads, currently no warning is produced.
 
 ```bash
-Usage: epimetheus methylation-pattern read [OPTIONS] --input <INPUT> --output <OUTPUT> --motifs <MOTIFS>...
+Usage: epimetheus methylation-pattern read-bam [OPTIONS] --bam <BAM> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
 
 Options:
-  -i, --input <INPUT>            Path to bam file.
+  -b, --bam <BAM>                Path to bam file.
+  -a, --assembly <ASSEMBLY>      Path to assembly file.
       --contig-ids <CONTIG_IDS>  File with specific contig ids to process.
   -o, --output <OUTPUT>          Path to output file. Must be .tsv.
   -t, --threads <THREADS>        Number of parallel tasks. [default: 1]
