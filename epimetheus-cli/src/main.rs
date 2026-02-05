@@ -8,6 +8,7 @@ use epimetheus_io::io::traits::*;
 use epimetheus_io::services::compression_service::CompressorService;
 use epimetheus_io::services::decompression_service::extract_from_pileup;
 
+use epimetheus_orchestration::bam_tag_merge_service::bam_tag_merge_service;
 use epimetheus_orchestration::extract_methylation_pattern_service::{
     MethylationInput, extract_methylation_pattern,
 };
@@ -233,6 +234,10 @@ fn main() -> Result<()> {
                 )?;
             }
         },
+        argparser::Commands::BamTagMerge(args) => {
+            let bam_merge_args = args.try_into()?;
+            bam_tag_merge_service(&bam_merge_args)?
+        }
     }
 
     let elapsed_total_duration = total_duration.elapsed();
