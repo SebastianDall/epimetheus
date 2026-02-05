@@ -9,15 +9,16 @@ repository.workspace = true
 
 [dependencies]
 epimetheus-core = { path = "../epimetheus-core" }
-epimetheus-io = { path = "../epimetheus-io"}
-epimetheus-methylome = { path = "../methylome"}
+epimetheus-io = { path = "../epimetheus-io" }
+epimetheus-methylome = { path = "../methylome" }
 indicatif = { version = "*", features = ["rayon"] }
-humantime = {workspace = true }
+humantime = { workspace = true }
 anyhow = { workspace = true }
-log = {workspace = true}
+log = { workspace = true }
 rayon = { workspace = true }
 polars = { workspace = true }
+noodles-sam = "0.81.0"
 ahash = "0.8.11"
 serde = { version = "1.0.228", features = ["derive"] }
 csv.workspace = true
-
+redb = "3.1.0"

@@ -1,2 +1,3 @@
+pub mod bam_tag_merge_service;
 pub mod extract_methylation_pattern_service;
 pub mod extract_read_methylation_service;
