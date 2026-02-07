@@ -24,7 +24,8 @@ noodles-fastq = "0.21.0"
 noodles-bam = "0.85.0"
 noodles-sam = "0.81.0"
 bstr = "*"
-flate2 = "1.0"
+flate2 = {version = "1.0", features = ["zlib-ng"]}
+tokio = "1.49.0"
 
 [dev-dependencies]
 tempfile = "3.0"
