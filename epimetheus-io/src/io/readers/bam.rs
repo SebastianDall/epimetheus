@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::{fs::File, path::Path, str::FromStr};
 
 use ahash::HashMap;
@@ -15,6 +16,7 @@ use epimetheus_methylome::{
 use noodles_bam::{self as bam, record::Data};
 use noodles_bgzf::{self as bgzf};
 use noodles_sam::Header;
+use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::alignment::record_buf::data::field::Value as BufValue;
 use noodles_sam::alignment::record_buf::data::field::value::Array as BufArray;
 use noodles_sam::{self as sam, alignment::record::cigar::Op};
@@ -128,7 +130,7 @@ impl BamReaderIndexed {
 }
 
 fn extract_mm_tags(data: &Data) -> Option<String> {
-    let mm_tags = data.get(b"MM").and_then(|value| {
+    let mm_tags = data.get(&Tag::BASE_MODIFICATIONS).and_then(|value| {
         if let Ok(sam::alignment::record::data::field::Value::String(s)) = value {
             Some(s.to_string())
         } else {
@@ -140,12 +142,14 @@ fn extract_mm_tags(data: &Data) -> Option<String> {
 }
 
 fn extract_ml_tag(data: &Data) -> Option<Vec<u8>> {
-    let ml_tag = data.get(b"ML").and_then(|value| match value {
-        Ok(sam::alignment::record::data::field::Value::Array(
-            sam::alignment::record::data::field::value::Array::UInt8(arr),
-        )) => Some(arr.iter().flatten().collect::<Vec<_>>()),
-        _ => None,
-    });
+    let ml_tag = data
+        .get(&Tag::BASE_MODIFICATION_PROBABILITIES)
+        .and_then(|value| match value {
+            Ok(sam::alignment::record::data::field::Value::Array(
+                sam::alignment::record::data::field::value::Array::UInt8(arr),
+            )) => Some(arr.iter().flatten().collect::<Vec<_>>()),
+            _ => None,
+        });
 
     ml_tag
 }
@@ -166,23 +170,105 @@ impl BamReader {
     pub fn iter_tags(&mut self) -> Result<impl Iterator<Item = Result<TagRecord>> + '_> {
         Ok(self.reader.records().filter_map(move |result| {
             let record = result.ok()?;
-            let tag_rec = TagRecord::try_from(record).ok()?;
+            let tag_rec = TagRecord::try_from(&record).ok()?;
 
             Some(Ok(tag_rec))
         }))
     }
 }
 
+#[derive(Debug)]
 pub struct TagRecord {
     pub read_id: String,
     pub mm_tags: Option<String>,
     pub ml_tag: Option<Vec<u8>>,
 }
 
-impl TryFrom<noodles_bam::Record> for TagRecord {
+impl TagRecord {
+    pub fn rename_modified_base_descriptor(
+        &mut self,
+        from: &ModifiedBaseDescriptor,
+        to: &ModifiedBaseDescriptor,
+    ) {
+        let from_str = from.to_string();
+        let to_str = to.to_string();
+        self.mm_tags = self.mm_tags.as_ref().map(|mm| {
+            let new_mm_tag_vec: Vec<String> = mm
+                .split(";")
+                .filter(|s| !s.is_empty())
+                .map(|s| {
+                    let modified_bases = s.split_once(",");
+                    let new_mm_tag = if let Some((k, v)) = modified_bases {
+                        if k == from_str.as_str() {
+                            format!("{},{}", to_str, v)
+                        } else {
+                            s.to_string()
+                        }
+                    } else {
+                        s.to_string()
+                    };
+                    new_mm_tag
+                })
+                .collect();
+            let mut new_mm_tags = new_mm_tag_vec.join(";");
+            new_mm_tags.push(';');
+            new_mm_tags
+        });
+    }
+    pub fn extend_tags_naive(&mut self, other: TagRecord) {
+        // self.mm_tags = match (&self.mm_tags, other.mm_tags) {
+        //     (Some(existing), Some(new)) => Some(format!("{}{}", existing, new)),
+        //     (None, Some(new)) => Some(new),
+        //     (Some(existing), None) => Some(existing.clone()),
+        //     (None, None) => None,
+        // };
+        if let Some(other_mm) = other.mm_tags {
+            self.mm_tags = match &mut self.mm_tags {
+                Some(existing) => {
+                    existing.push_str(&other_mm);
+                    Some(existing.clone())
+                }
+                None => Some(other_mm),
+            }
+        }
+        if let Some(mut other_ml) = other.ml_tag {
+            match &mut self.ml_tag {
+                Some(ml) => ml.append(&mut other_ml), // No allocation!
+                None => self.ml_tag = Some(other_ml),
+            }
+        }
+
+        // if let Some(other_ml) = other.ml_tag {
+        //     self.ml_tag = Some(
+        //         self.ml_tag
+        //             .take()
+        //             .map(|mut ml| {
+        //                 ml.extend(other_ml.clone());
+        //                 ml
+        //             })
+        //             .unwrap_or(other_ml),
+        //     );
+        // }
+    }
+    /// Create the sam tags. This will consume the record
+    pub fn to_sam_value(self) -> Result<Option<(BufValue, BufValue)>> {
+        match (self.mm_tags, self.ml_tag) {
+            (Some(mm), Some(ml)) => {
+                let mm_value = BufValue::String(mm.into());
+                let ml_value = BufValue::Array(BufArray::UInt8(ml.into()));
+                Ok(Some((mm_value, ml_value)))
+            }
+            (None, Some(_)) => Err(anyhow!("Missing mm values, but present ml values")),
+            (Some(_), None) => Err(anyhow!("Missing ml values, but present mm values")),
+            (None, None) => Ok(None),
+        }
+    }
+}
+
+impl TryFrom<&noodles_bam::Record> for TagRecord {
     type Error = anyhow::Error;
 
-    fn try_from(record: noodles_bam::Record) -> std::result::Result<Self, Self::Error> {
+    fn try_from(record: &noodles_bam::Record) -> std::result::Result<Self, Self::Error> {
         let read_id = record.name().ok_or(anyhow!("Missing read id"))?.to_string();
 
         let data = record.data();
@@ -198,11 +284,11 @@ impl TryFrom<noodles_bam::Record> for TagRecord {
 }
 
 #[derive(Default)]
-pub struct MethTags {
-    pub tags: HashMap<TagKey, MethTag>,
+pub struct ModifiedBasesMap {
+    pub tags: HashMap<ModifiedBaseDescriptor, ModifiedBaseSkipValues>,
 }
 
-impl MethTags {
+impl ModifiedBasesMap {
     pub fn to_sam_value(&self) -> (BufValue, BufValue) {
         let mut mm_vec = Vec::new();
         let mut ml_vec = Vec::new();
@@ -219,7 +305,7 @@ impl MethTags {
 
         (mm_value, ml_value)
     }
-    pub fn extend_tags(&mut self, other: MethTags) -> Result<()> {
+    pub fn extend_tags(&mut self, other: ModifiedBasesMap) -> Result<()> {
         let overlapping_keys: Vec<String> = other
             .tags
             .keys()
@@ -236,7 +322,7 @@ impl MethTags {
         Ok(())
     }
     pub fn extend(&mut self, mm: String, ml: &[u8]) -> Result<()> {
-        let new_meth_tags = MethTags::from_tags(mm, ml)?;
+        let new_meth_tags = ModifiedBasesMap::from_tags(mm, ml)?;
         self.extend_tags(new_meth_tags)?;
         Ok(())
     }
@@ -247,7 +333,7 @@ impl MethTags {
                 let parts: Vec<&str> = m.split(",").collect();
                 let key_part = parts.first().ok_or(anyhow!("Missing key part"))?;
 
-                let tag_key = TagKey::from_str(key_part)?;
+                let tag_key = ModifiedBaseDescriptor::from_str(key_part)?;
 
                 let skip_distances: Vec<SkipDistance> = parts
                     .iter()
@@ -267,7 +353,8 @@ impl MethTags {
                     .map(|b| MethQual::new(*b))
                     .collect();
 
-                let meth_tag = MethTag::new(tag_key.clone(), skip_distances, meth_qualities)?;
+                let meth_tag =
+                    ModifiedBaseSkipValues::new(tag_key.clone(), skip_distances, meth_qualities)?;
 
                 map.insert(tag_key, meth_tag);
 
@@ -278,7 +365,11 @@ impl MethTags {
         Ok(Self { tags })
     }
 
-    pub fn rename_tag(&mut self, key: &TagKey, other_key: TagKey) -> Result<()> {
+    pub fn rename_tag(
+        &mut self,
+        key: &ModifiedBaseDescriptor,
+        other_key: ModifiedBaseDescriptor,
+    ) -> Result<()> {
         if self.tags.contains_key(&other_key) {
             return Err(anyhow!(
                 "Other Key already present. Could not rename key: {}",
@@ -295,15 +386,15 @@ impl MethTags {
     }
 }
 
-pub struct MethTag {
-    pub tag_key: TagKey,
+pub struct ModifiedBaseSkipValues {
+    pub tag_key: ModifiedBaseDescriptor,
     pub skip_distances: Vec<SkipDistance>,
     pub meth_qualities: Vec<MethQual>,
 }
 
-impl MethTag {
+impl ModifiedBaseSkipValues {
     pub fn new(
-        tag_key: TagKey,
+        tag_key: ModifiedBaseDescriptor,
         skip_distances: Vec<SkipDistance>,
         meth_qualities: Vec<MethQual>,
     ) -> Result<Self> {
@@ -334,14 +425,14 @@ impl MethTag {
 /// [ATGCU][+-]([a-z]+[0-9]+)[.?]?
 /// example: A+a.
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct TagKey {
+pub struct ModifiedBaseDescriptor {
     fundamental_base: IupacBase,
     strand: Strand,
     base_modification_code: ModCode,
     skip_interpreter: Option<SkipInterpreter>,
 }
 
-impl TagKey {
+impl ModifiedBaseDescriptor {
     pub fn new(
         base: char,
         strand: char,
@@ -372,14 +463,14 @@ impl TagKey {
             skip_interpreter,
         })
     }
-    pub fn mutate_mod_code(&self, code: ModCode) -> TagKey {
+    pub fn mutate_mod_code(&self, code: ModCode) -> ModifiedBaseDescriptor {
         let mut new_key = self.clone();
         new_key.base_modification_code = code;
         new_key
     }
 }
 
-impl ToString for TagKey {
+impl ToString for ModifiedBaseDescriptor {
     fn to_string(&self) -> String {
         let skip_interpreter = match self.skip_interpreter {
             Some(i) => i.to_string(),
@@ -395,7 +486,7 @@ impl ToString for TagKey {
     }
 }
 
-impl FromStr for TagKey {
+impl FromStr for ModifiedBaseDescriptor {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
@@ -426,7 +517,7 @@ impl FromStr for TagKey {
             return Err(anyhow!("Missing base modification code: {}", remaining));
         };
 
-        let tag_key = TagKey::new(base, strand, code.to_string(), interpreter)?;
+        let tag_key = ModifiedBaseDescriptor::new(base, strand, code.to_string(), interpreter)?;
         Ok(tag_key)
     }
 }
