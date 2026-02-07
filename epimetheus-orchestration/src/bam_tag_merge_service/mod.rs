@@ -6,7 +6,7 @@ use std::{
 use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use anyhow::{Result, anyhow};
 use epimetheus_io::io::{
-    readers::bam::{BamReader, ModifiedBaseDescriptor, ModifiedBasesMap, TagRecord},
+    readers::bam::{BamReader, ModifiedBaseDescriptor, TagRecord},
     writers::bam::BamWriter,
 };
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
@@ -14,10 +14,7 @@ use log::{error, info};
 use noodles_bam as bam;
 use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::{self as sam, alignment::RecordBuf};
-use redb::{Database, ReadOnlyTable, ReadableDatabase, TableDefinition};
-
-pub mod db;
-
+// use redb::{Database, ReadOnlyTable, ReadableDatabase, TableDefinition};
 pub struct BamMergeArgs {
     pub from_bam: PathBuf,
     pub to_bam: PathBuf,

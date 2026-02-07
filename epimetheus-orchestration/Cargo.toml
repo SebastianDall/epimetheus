@@ -22,7 +22,7 @@ noodles-bam = "0.85.0"
 ahash = "0.8.11"
 serde = { version = "1.0.228", features = ["derive"] }
 csv.workspace = true
-redb = "3.1.0"
+# redb = "3.1.0"
 
 [dev-dependencies]
 tempfile.workspace = true
