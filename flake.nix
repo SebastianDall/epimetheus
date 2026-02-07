@@ -36,7 +36,8 @@
             rEnv
             pkgs.cargo
             pkgs.rustc
-            pkgs.linuxKernel.packages.linux_zen.perf
+            pkgs.linuxPackages.perf
+            pkgs.cargo-flamegraph
             pkgs.cargo-cross
             pkgs.cargo-release
             pkgs.htslib
@@ -84,6 +85,7 @@
           buildInputs = [
             pkgs.openssl
             pkgs.pkg-config
+            pkgs.addr2line
           ];
           nativeBuildInputs = [
             pkgs.openssl_3_3
