@@ -4,6 +4,7 @@ use std::{fs::File, path::Path, str::FromStr};
 use ahash::HashMap;
 use ahash::HashMapExt;
 use anyhow::{Context, Result, anyhow};
+use bstr::{BStr, ByteSlice};
 use epimetheus_core::models::contig::ContigId;
 use epimetheus_methylome::{
     IupacBase, Strand,
@@ -114,7 +115,8 @@ impl BamReaderIndexed {
             };
 
             let modifications = if let Some(mm) = mm_tags {
-                let skip_distances = MethSkipDistances::from_meth_tags(mm, meth_qualities)?;
+                let skip_distances =
+                    MethSkipDistances::from_meth_tags(mm.to_str()?, meth_qualities)?;
                 let modifications = convert_skip_distances_to_positions(&sequence, skip_distances)?;
                 modifications
             } else {
@@ -129,10 +131,11 @@ impl BamReaderIndexed {
     }
 }
 
-fn extract_mm_tags(data: &Data) -> Option<String> {
+pub fn extract_mm_tags<'a>(data: &'a Data) -> Option<&'a BStr> {
     let mm_tags = data.get(&Tag::BASE_MODIFICATIONS).and_then(|value| {
         if let Ok(sam::alignment::record::data::field::Value::String(s)) = value {
-            Some(s.to_string())
+            // Some(s.to_string())
+            Some(s)
         } else {
             None
         }
@@ -141,7 +144,7 @@ fn extract_mm_tags(data: &Data) -> Option<String> {
     mm_tags
 }
 
-fn extract_ml_tag(data: &Data) -> Option<Vec<u8>> {
+pub fn extract_ml_tag(data: &Data) -> Option<Vec<u8>> {
     let ml_tag = data
         .get(&Tag::BASE_MODIFICATION_PROBABILITIES)
         .and_then(|value| match value {
@@ -190,8 +193,8 @@ impl TagRecord {
         from: &ModifiedBaseDescriptor,
         to: &ModifiedBaseDescriptor,
     ) {
-        let from_str = from.to_string();
-        let to_str = to.to_string();
+        let from_str = from.as_str();
+        let to_str = to.as_str();
         self.mm_tags = self.mm_tags.as_ref().map(|mm| {
             let new_mm_tag_vec: Vec<String> = mm
                 .split(";")
@@ -199,7 +202,7 @@ impl TagRecord {
                 .map(|s| {
                     let modified_bases = s.split_once(",");
                     let new_mm_tag = if let Some((k, v)) = modified_bases {
-                        if k == from_str.as_str() {
+                        if k == from_str {
                             format!("{},{}", to_str, v)
                         } else {
                             s.to_string()
@@ -272,7 +275,7 @@ impl TryFrom<&noodles_bam::Record> for TagRecord {
         let read_id = record.name().ok_or(anyhow!("Missing read id"))?.to_string();
 
         let data = record.data();
-        let mm_tags = extract_mm_tags(&data);
+        let mm_tags = extract_mm_tags(&data).map(|mm| mm.to_string());
         let ml_tag = extract_ml_tag(&data);
 
         Ok(Self {
@@ -430,9 +433,22 @@ pub struct ModifiedBaseDescriptor {
     strand: Strand,
     base_modification_code: ModCode,
     skip_interpreter: Option<SkipInterpreter>,
+    cached_string: String,
 }
 
 impl ModifiedBaseDescriptor {
+    fn compute_cached_string(&self) -> String {
+        let cached_string = format!(
+            "{}{}{}{}",
+            self.fundamental_base.to_string(),
+            self.strand.to_string(),
+            self.base_modification_code.0,
+            self.skip_interpreter
+                .map(|i| i.to_string())
+                .unwrap_or_default()
+        );
+        cached_string
+    }
     pub fn new(
         base: char,
         strand: char,
@@ -456,33 +472,37 @@ impl ModifiedBaseDescriptor {
         let base_modification_code = ModCode::new(base_modification_code)?;
         let skip_interpreter = skip_interpreter.and_then(|i| SkipInterpreter::try_from(i).ok());
 
+        let cached_string = format!(
+            "{}{}{}{}",
+            fundamental_base.to_string(),
+            strand.to_string(),
+            base_modification_code.0,
+            skip_interpreter.map(|i| i.to_string()).unwrap_or_default()
+        );
+
         Ok(Self {
             fundamental_base,
             strand,
             base_modification_code,
             skip_interpreter,
+            cached_string,
         })
     }
     pub fn mutate_mod_code(&self, code: ModCode) -> ModifiedBaseDescriptor {
         let mut new_key = self.clone();
         new_key.base_modification_code = code;
+        new_key.cached_string = new_key.compute_cached_string();
         new_key
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.cached_string
     }
 }
 
 impl ToString for ModifiedBaseDescriptor {
     fn to_string(&self) -> String {
-        let skip_interpreter = match self.skip_interpreter {
-            Some(i) => i.to_string(),
-            None => "".to_string(),
-        };
-        format!(
-            "{}{}{}{}",
-            self.fundamental_base.to_string(),
-            self.strand.to_string(),
-            self.base_modification_code.0,
-            skip_interpreter,
-        )
+        self.cached_string.clone()
     }
 }
 
