@@ -36,12 +36,13 @@
             rEnv
             pkgs.cargo
             pkgs.rustc
-            pkgs.linuxPackages.perf
+            pkgs.perf
             pkgs.cargo-flamegraph
             pkgs.cargo-cross
             pkgs.cargo-release
             pkgs.htslib
             pkgs.samtools
+            pkgs.minimap2
 
             # For building
             pkgs.openssl
