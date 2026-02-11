@@ -13,7 +13,12 @@ pub struct BamMergeCliArgs {
     #[arg(short, long, help = "path to bam to add tags to. file must exist.")]
     pub to_bam: PathBuf,
 
-    #[arg(short, long, help = "path to construct db with tags for 'from_bams'.")]
+    #[arg(
+        short,
+        required = false,
+        long,
+        help = "path to construct db with tags for 'from_bams'."
+    )]
     pub db_path: PathBuf,
 
     #[arg(required = false, num_args(1..), long, help = "Rename mod code in tag key in the 'from_bam'. <from:to>. ex C+21839.:m. Will change 21839 to m in the tag code. Has to be a lowercase string or a sequence of numbers.")]
@@ -24,16 +29,15 @@ pub struct BamMergeCliArgs {
 
     #[arg(required = false, num_args(1..), long, help = "Mod codes to be ignored in the from bam.")]
     pub ignore_tags_from_bam: Vec<String>,
+    // #[arg(long, default_value_t = false, help = "keep database to be reused.")]
+    // pub keep_db: bool,
 
-    #[arg(long, default_value_t = false, help = "keep database to be reused.")]
-    pub keep_db: bool,
-
-    #[arg(
-        long,
-        default_value_t = false,
-        help = "leave original out bam untouched."
-    )]
-    pub keep_outfile: bool,
+    // #[arg(
+    //     long,
+    //     default_value_t = false,
+    //     help = "leave original out bam untouched."
+    // )]
+    // pub keep_outfile: bool,
 }
 
 impl BamMergeCliArgs {
@@ -79,8 +83,8 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
             rename_tags_to_bam: rename_tags_to_opt,
             rename_tags_from_bam: rename_tags_from_opt,
             ignore_tags_from_bam: cli.ignore_tags_from_bam,
-            keep_db: cli.keep_db,
-            keep_outfile: cli.keep_outfile,
+            // keep_db: cli.keep_db,
+            // keep_outfile: cli.keep_outfile,
         })
     }
 }
