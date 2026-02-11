@@ -5,6 +5,7 @@ use noodles_bgzf::io::MultithreadedWriter;
 use noodles_sam::alignment::Record;
 use noodles_sam::alignment::io::Write;
 use noodles_sam::{self as sam, alignment::RecordBuf};
+use std::io::{StdoutLock, Write as StdWrite};
 use std::num::NonZero;
 use std::path::Path;
 use std::{ffi::OsString, fs::File, str::FromStr};
@@ -31,6 +32,28 @@ impl BamWriter {
             bgzf::io::MultithreadedWriter::with_worker_count(NonZero::new(6).unwrap(), file);
         let mut wtr = bam::io::Writer::from(bgzf_wtr);
         wtr.write_header(&header)?;
+
+        Ok(Self { wtr, header })
+    }
+
+    pub fn write_record(&mut self, record_buf: RecordBuf) -> Result<()> {
+        self.wtr
+            .write_alignment_record(&self.header, &record_buf as &dyn Record)?;
+        Ok(())
+    }
+}
+
+pub struct BamStdOutWriter<'a> {
+    pub wtr: bam::io::writer::Writer<bgzf::io::Writer<StdoutLock<'a>>>,
+    header: sam::Header,
+}
+
+impl<'a> BamStdOutWriter<'a> {
+    pub fn new(header: sam::header::Header) -> Result<Self> {
+        let out = std::io::stdout().lock();
+        let mut wtr = bam::io::Writer::new(out);
+        wtr.write_header(&header)?;
+        wtr.get_mut().flush()?;
 
         Ok(Self { wtr, header })
     }
