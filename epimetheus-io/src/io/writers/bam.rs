@@ -3,7 +3,7 @@ use noodles_bam as bam;
 use noodles_bgzf as bgzf;
 use noodles_bgzf::io::MultithreadedWriter;
 use noodles_sam::alignment::Record;
-use noodles_sam::alignment::io::Write;
+use noodles_sam::alignment::io::Write as SamWrite;
 use noodles_sam::{self as sam, alignment::RecordBuf};
 use std::io::{StdoutLock, Write as StdWrite};
 use std::num::NonZero;
