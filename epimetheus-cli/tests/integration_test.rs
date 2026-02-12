@@ -628,7 +628,9 @@ fn test_read_methylation_pattern() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
-    let bam = data_dir.join("u6343517_minimal.bam");
+    let bam = data_dir.join("barcode01_5x_coverage.bam");
+    let assembly =
+        data_dir.join("NC_000913.3_escherichia_coli_str_K_12_substr_MG1655_complete_genome.fasta");
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
@@ -641,8 +643,10 @@ fn test_read_methylation_pattern() {
             "--",
             "methylation-pattern",
             "read-bam",
-            "-i",
+            "-b",
             bam.to_str().unwrap(),
+            "-a",
+            assembly.to_str().unwrap(),
             "-m",
             "GGWCC_m_3",
             "-o",

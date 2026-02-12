@@ -401,7 +401,7 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
         writer,
     )?;
 
-    // Cleanup
+    // Cleanup. If the user provided one we do not remove it.
     if !args.keep_db && args.db_path.is_none() {
         warn!("Removing db: {}", db_name.display());
         if let Err(e) = std::fs::remove_file(&db_name) {
