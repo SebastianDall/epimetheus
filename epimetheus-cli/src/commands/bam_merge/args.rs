@@ -1,7 +1,7 @@
 use ahash::HashMap;
 use anyhow::anyhow;
 use clap::Parser;
-use epimetheus_io::io::readers::bam::{ModCode, ModifiedBaseDescriptor};
+use epimetheus_io::io::modified_basecalls::descriptor::{ModCode, ModifiedBaseDescriptor};
 use epimetheus_orchestration::bam_tag_merge_service::BamMergeArgs;
 use std::{path::PathBuf, str::FromStr};
 
@@ -19,7 +19,7 @@ pub struct BamMergeCliArgs {
         long,
         help = "path to construct db with tags for 'from_bams'."
     )]
-    pub db_path: PathBuf,
+    pub db_path: Option<PathBuf>,
 
     #[arg(required = false, num_args(1..), long, help = "Rename mod code in tag key in the 'from_bam'. <from:to>. ex C+21839.:m. Will change 21839 to m in the tag code. Has to be a lowercase string or a sequence of numbers.")]
     pub rename_tags_from_bam: Vec<String>,
@@ -29,15 +29,9 @@ pub struct BamMergeCliArgs {
 
     #[arg(required = false, num_args(1..), long, help = "Mod codes to be ignored in the from bam.")]
     pub ignore_tags_from_bam: Vec<String>,
-    // #[arg(long, default_value_t = false, help = "keep database to be reused.")]
-    // pub keep_db: bool,
 
-    // #[arg(
-    //     long,
-    //     default_value_t = false,
-    //     help = "leave original out bam untouched."
-    // )]
-    // pub keep_outfile: bool,
+    #[arg(long, default_value_t = false, help = "keep database to be reused.")]
+    pub keep_db: bool,
 }
 
 impl BamMergeCliArgs {
@@ -96,8 +90,7 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
             rename_tags_to_bam: rename_tags_to_opt,
             rename_tags_from_bam: rename_tags_from_opt,
             ignore_tags_from_bam,
-            // keep_db: cli.keep_db,
-            // keep_outfile: cli.keep_outfile,
+            keep_db: cli.keep_db,
         })
     }
 }

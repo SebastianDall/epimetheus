@@ -8,7 +8,8 @@ use ahash::{HashMap, HashSet, HashSetExt};
 use anyhow::{Context, Result, anyhow};
 use bstr::ByteSlice;
 use epimetheus_io::io::{
-    readers::bam::{BamReader, ModifiedBaseDescriptor, TagRecord, extract_ml_tag, extract_mm_tags},
+    modified_basecalls::{descriptor::ModifiedBaseDescriptor, record::TagRecord},
+    readers::bam::{BamReader, extract_ml_tag, extract_mm_tags},
     writers::sam::SamStdOutWriter,
 };
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
@@ -22,12 +23,11 @@ use redb::{Database, ReadOnlyTable, ReadableDatabase, TableDefinition};
 pub struct BamMergeArgs {
     pub from_bam: PathBuf,
     pub to_bam: PathBuf,
-    pub db_path: PathBuf,
+    pub db_path: Option<PathBuf>,
     pub rename_tags_from_bam: Option<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
     pub rename_tags_to_bam: Option<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
     pub ignore_tags_from_bam: Option<Vec<ModifiedBaseDescriptor>>,
-    // pub keep_db: bool,
-    // pub keep_outfile: bool,
+    pub keep_db: bool,
 }
 
 fn extract_modified_descriptors_from_first_record(
@@ -312,13 +312,31 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     drop(rdr_to_bam);
 
     // Step 2: Create writer immediately (this writes header to stdout)
-    // let mut writer = BamStdOutWriter::new(header.clone())?;
     let writer = SamStdOutWriter::new(header.clone())?;
     use std::io::Write;
     std::io::stdout().flush()?;
+
     // Setup database
-    let mut db_name = args.db_path.clone();
-    db_name.push("tags.redb");
+    let db_name = if let Some(db) = args.db_path.clone() {
+        if db.extension().and_then(|s| s.to_str()) != Some("redb") {
+            return Err(anyhow!("'--db-path' requires the extension '.redb'"));
+        }
+        db
+    } else {
+        let sample_name = args
+            .from_bam
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("tags");
+        tempfile::Builder::new()
+            .prefix(&format!("{}_", sample_name))
+            .suffix(".redb")
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf()
+    };
+    info!("Writing tags to {}", db_name.display());
+
     let db = Database::create(&db_name).context("Could not create DB")?;
     let table_definition: TableDefinition<&str, (&str, &[u8])> = TableDefinition::new("tags");
 
@@ -375,18 +393,21 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     // let temp_output = args.to_bam.with_extension("tmp.bam");
     write_merged_bam(
         &args.to_bam,
-        // &temp_output,
-        // &header,
         &db,
         table_definition,
-        // &mut map,
         args.rename_tags_from_bam.as_ref(),
         args.rename_tags_to_bam.as_ref(),
         &from_bam_ignored_keys,
         writer,
     )?;
 
-    // TODO: Handle file cleanup and renaming based on args.keep_db and args.keep_outfile
+    // Cleanup
+    if !args.keep_db && args.db_path.is_none() {
+        warn!("Removing db: {}", db_name.display());
+        if let Err(e) = std::fs::remove_file(&db_name) {
+            eprintln!("Warning: Failed to remove temporary database: {}", e);
+        }
+    }
 
     Ok(())
 }
