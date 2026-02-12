@@ -4,12 +4,12 @@ use std::{
     str::FromStr,
 };
 
-use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
+use ahash::{HashMap, HashSet, HashSetExt};
 use anyhow::{Context, Result, anyhow};
 use bstr::ByteSlice;
 use epimetheus_io::io::{
     readers::bam::{BamReader, ModifiedBaseDescriptor, TagRecord, extract_ml_tag, extract_mm_tags},
-    writers::bam::BamStdOutWriter,
+    writers::sam::SamStdOutWriter,
 };
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 use log::{error, info};
@@ -25,7 +25,7 @@ pub struct BamMergeArgs {
     pub db_path: PathBuf,
     pub rename_tags_from_bam: Option<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
     pub rename_tags_to_bam: Option<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
-    pub ignore_tags_from_bam: Vec<String>,
+    pub ignore_tags_from_bam: Option<Vec<ModifiedBaseDescriptor>>,
     // pub keep_db: bool,
     // pub keep_outfile: bool,
 }
@@ -164,6 +164,7 @@ fn merge_tags_for_record(
     table: &ReadOnlyTable<&str, (&str, &[u8])>,
     from_rename_tags: Option<&HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
     to_rename_tags: Option<&HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
+    remove_tags_from_bam: &Vec<ModifiedBaseDescriptor>,
 ) -> Result<RecordBuf> {
     let mut record_buf = RecordBuf::try_from_alignment_record(header, record)?;
 
@@ -187,6 +188,9 @@ fn merge_tags_for_record(
                 ml_tag: Some(ml_bytes.to_vec()),
             };
 
+            if !remove_tags_from_bam.is_empty() {
+                from_tag_record.remove_modified_base_descriptor(remove_tags_from_bam)?;
+            }
             if let Some(mv) = from_rename_tags {
                 for (from, to) in mv {
                     from_tag_record.rename_modified_base_descriptor(from, to);
@@ -216,14 +220,12 @@ fn merge_tags_for_record(
 
 fn write_merged_bam(
     to_bam: &Path,
-    // output_path: &Path,
-    // header: &sam::Header,
-    // map: &mut TagMap,
     db: &Database,
     table_def: TableDefinition<&str, (&str, &[u8])>,
     rename_tags_from_bam: Option<&HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
     rename_tags_to_bam: Option<&HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
-    mut writer: BamStdOutWriter,
+    remove_tags_from_bam: &Vec<ModifiedBaseDescriptor>,
+    mut writer: SamStdOutWriter,
 ) -> Result<()> {
     let mut rdr = BamReader::new(to_bam)?;
 
@@ -261,6 +263,7 @@ fn write_merged_bam(
                         &table,
                         rename_tags_from_bam,
                         rename_tags_to_bam,
+                        remove_tags_from_bam,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -286,6 +289,7 @@ fn write_merged_bam(
                     &table,
                     rename_tags_from_bam,
                     rename_tags_to_bam,
+                    remove_tags_from_bam,
                 )
             })
             .collect::<Result<Vec<_>>>()?;
@@ -297,7 +301,8 @@ fn write_merged_bam(
     }
 
     pb.finish_with_message(format!("Merged {} reads", HumanCount(count)));
-    writer.wtr.try_finish()?;
+    writer.try_finish()?;
+    // writer.wtr.try_finish()?;
     Ok(())
 }
 
@@ -307,7 +312,8 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     drop(rdr_to_bam);
 
     // Step 2: Create writer immediately (this writes header to stdout)
-    let mut writer = BamStdOutWriter::new(header.clone())?;
+    // let mut writer = BamStdOutWriter::new(header.clone())?;
+    let writer = SamStdOutWriter::new(header.clone())?;
     use std::io::Write;
     std::io::stdout().flush()?;
     // Setup database
@@ -315,16 +321,25 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     db_name.push("tags.redb");
     let db = Database::create(&db_name).context("Could not create DB")?;
     let table_definition: TableDefinition<&str, (&str, &[u8])> = TableDefinition::new("tags");
-    //
-    // // Step 1: Extract tags from source BAM to database
-    let from_bam_keys = extract_modified_descriptors_from_first_record(
+
+    // Check for overlapping keys:
+    let from_bam_ignored_keys = args.ignore_tags_from_bam.clone().unwrap_or(Vec::new());
+    let mut from_bam_keys = extract_modified_descriptors_from_first_record(
         &args.from_bam,
         args.rename_tags_from_bam.as_ref(),
     )?;
     info!("Keys found in 'from_bam': {}", args.from_bam.display());
     for key in &from_bam_keys {
-        info!(" - {}", key.to_string());
+        if !from_bam_ignored_keys.contains(&key) {
+            info!(" - {}", key.to_string());
+        } else {
+            info!(" - {} (Ignored)", key.to_string());
+        }
     }
+    from_bam_keys = from_bam_keys
+        .into_iter()
+        .filter(|m| !from_bam_ignored_keys.contains(m))
+        .collect();
     let to_bam_keys = extract_modified_descriptors_from_first_record(
         &args.to_bam,
         args.rename_tags_to_bam.as_ref(),
@@ -354,7 +369,6 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
 
     // Step 2: Read header from target BAM
     let rdr_to_bam = BamReader::new(&args.to_bam)?;
-    let header = rdr_to_bam.header.clone();
     drop(rdr_to_bam);
 
     // Step 3: Write merged BAM to temp file
@@ -368,6 +382,7 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
         // &mut map,
         args.rename_tags_from_bam.as_ref(),
         args.rename_tags_to_bam.as_ref(),
+        &from_bam_ignored_keys,
         writer,
     )?;
 

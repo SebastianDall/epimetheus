@@ -76,13 +76,26 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
         } else {
             None
         };
+
+        let ignore_tags_from_bam = if !cli.ignore_tags_from_bam.is_empty() {
+            let tag = cli
+                .ignore_tags_from_bam
+                .iter()
+                .map(|s| ModifiedBaseDescriptor::from_str(s.as_str()))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Some(tag)
+        } else {
+            None
+        };
+
         Ok(Self {
             from_bam: cli.from_bam,
             to_bam: cli.to_bam,
             db_path: cli.db_path,
             rename_tags_to_bam: rename_tags_to_opt,
             rename_tags_from_bam: rename_tags_from_opt,
-            ignore_tags_from_bam: cli.ignore_tags_from_bam,
+            ignore_tags_from_bam,
             // keep_db: cli.keep_db,
             // keep_outfile: cli.keep_outfile,
         })

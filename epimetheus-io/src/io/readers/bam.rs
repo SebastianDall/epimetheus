@@ -1,8 +1,4 @@
-use std::fmt::format;
-use std::{fs::File, path::Path, str::FromStr};
-
-use ahash::HashMap;
-use ahash::HashMapExt;
+use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use anyhow::{Context, Result, anyhow};
 use bstr::{BStr, ByteSlice};
 use epimetheus_core::models::contig::ContigId;
@@ -21,6 +17,7 @@ use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::alignment::record_buf::data::field::Value as BufValue;
 use noodles_sam::alignment::record_buf::data::field::value::Array as BufArray;
 use noodles_sam::{self as sam, alignment::record::cigar::Op};
+use std::{fs::File, path::Path, str::FromStr};
 
 pub struct BamReaderIndexed {
     reader: bam::io::IndexedReader<bgzf::io::Reader<File>>,
@@ -219,12 +216,6 @@ impl TagRecord {
         });
     }
     pub fn extend_tags_naive(&mut self, other: TagRecord) {
-        // self.mm_tags = match (&self.mm_tags, other.mm_tags) {
-        //     (Some(existing), Some(new)) => Some(format!("{}{}", existing, new)),
-        //     (None, Some(new)) => Some(new),
-        //     (Some(existing), None) => Some(existing.clone()),
-        //     (None, None) => None,
-        // };
         if let Some(other_mm) = other.mm_tags {
             self.mm_tags = match &mut self.mm_tags {
                 Some(existing) => {
@@ -240,18 +231,6 @@ impl TagRecord {
                 None => self.ml_tag = Some(other_ml),
             }
         }
-
-        // if let Some(other_ml) = other.ml_tag {
-        //     self.ml_tag = Some(
-        //         self.ml_tag
-        //             .take()
-        //             .map(|mut ml| {
-        //                 ml.extend(other_ml.clone());
-        //                 ml
-        //             })
-        //             .unwrap_or(other_ml),
-        //     );
-        // }
     }
     /// Create the sam tags. This will consume the record
     pub fn to_sam_value(self) -> Result<Option<(BufValue, BufValue)>> {
@@ -265,6 +244,69 @@ impl TagRecord {
             (Some(_), None) => Err(anyhow!("Missing ml values, but present mm values")),
             (None, None) => Ok(None),
         }
+    }
+
+    pub fn remove_modified_base_descriptor(
+        &mut self,
+        remove_tags: &Vec<ModifiedBaseDescriptor>,
+    ) -> Result<()> {
+        if let Some(mm) = &self.mm_tags {
+            let (new_mm_vec, ignored_indices, _) =
+                mm.split(';').filter(|s| !s.is_empty()).try_fold(
+                    (Vec::new(), HashSet::new(), 0_usize),
+                    |(mut new_mm_vec, mut ignored_indices, running_counter),
+                     mm_part|
+                     -> Result<_> {
+                        if let Some((mod_descriptor_str, vals)) = mm_part.split_once(',') {
+                            let mod_descriptor =
+                                ModifiedBaseDescriptor::from_str(mod_descriptor_str)?;
+                            let skip_distances_len = vals.split(',').count();
+
+                            if remove_tags.contains(&mod_descriptor) {
+                                ignored_indices.extend(
+                                    running_counter..(running_counter + skip_distances_len),
+                                );
+                            } else {
+                                new_mm_vec.push(mm_part.to_string());
+                            }
+
+                            Ok((
+                                new_mm_vec,
+                                ignored_indices,
+                                running_counter + skip_distances_len,
+                            ))
+                        } else {
+                            Ok((new_mm_vec, ignored_indices, running_counter))
+                        }
+                    },
+                )?;
+            self.mm_tags = if new_mm_vec.is_empty() {
+                None
+            } else {
+                Some(new_mm_vec.join(";") + ";") // Need to end with a ;
+            };
+
+            if let Some(ml) = &self.ml_tag {
+                let new_ml: Vec<u8> = ml
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, &val)| {
+                        if ignored_indices.contains(&i) {
+                            None
+                        } else {
+                            Some(val)
+                        }
+                    })
+                    .collect();
+                self.ml_tag = if new_ml.is_empty() {
+                    None
+                } else {
+                    Some(new_ml)
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
