@@ -2,13 +2,20 @@ use ahash::HashMap;
 use anyhow::anyhow;
 use clap::Parser;
 use epimetheus_io::io::modified_basecalls::descriptor::{ModCode, ModifiedBaseDescriptor};
-use epimetheus_orchestration::bam_tag_merge_service::BamMergeArgs;
+use epimetheus_orchestration::bam_tag_merge_service::{BamMergeArgs, FromTags};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Parser, Debug, Clone)]
 pub struct BamMergeCliArgs {
-    #[arg(short, long, help = "paths to bams to extract tags from")]
-    pub from_bam: PathBuf,
+    #[arg(short, long, help = "Path to bam to extract tags from")]
+    pub from_bam: Option<PathBuf>,
+
+    #[arg(
+        short,
+        long,
+        help = "Path to db where tags have been extracted. This can not be used with '--from-bam'"
+    )]
+    pub from_db: Option<PathBuf>,
 
     #[arg(short, long, help = "path to bam to add tags to. file must exist.")]
     pub to_bam: PathBuf,
@@ -39,6 +46,19 @@ pub struct BamMergeCliArgs {
 }
 
 impl BamMergeCliArgs {
+    pub fn validate_from_arguments(&self) -> anyhow::Result<FromTags> {
+        match (&self.from_bam, &self.from_db) {
+            (Some(b), None) => Ok(FromTags::Bam(b.to_path_buf())),
+            (None, Some(db)) => Ok(FromTags::Db(db.to_path_buf())),
+            (Some(_), Some(_)) => Err(anyhow!(
+                "You must specify either '--from-bam' or '--from-db'. Not both"
+            )),
+            (None, None) => Err(anyhow!(
+                "You must specify either '--from-bam' or '--from-db'."
+            )),
+        }
+    }
+
     pub fn validate_rename_tags(
         tags: &Vec<String>,
     ) -> anyhow::Result<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>> {
@@ -61,6 +81,8 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
     type Error = anyhow::Error;
 
     fn try_from(cli: BamMergeCliArgs) -> Result<Self, Self::Error> {
+        let from = cli.validate_from_arguments()?;
+
         let rename_tags_from = BamMergeCliArgs::validate_rename_tags(&cli.rename_tags_from_bam)?;
         let rename_tags_from_opt = if !rename_tags_from.is_empty() {
             Some(rename_tags_from)
@@ -88,7 +110,7 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
         };
 
         Ok(Self {
-            from_bam: cli.from_bam,
+            from,
             to_bam: cli.to_bam,
             db_path: cli.db_path,
             rename_tags_to_bam: rename_tags_to_opt,

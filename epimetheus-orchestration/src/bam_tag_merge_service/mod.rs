@@ -18,10 +18,28 @@ use noodles_bam as bam;
 use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::{self as sam, alignment::RecordBuf};
 use rayon::prelude::*;
-use redb::{Database, ReadOnlyTable, ReadableDatabase, TableDefinition};
+use redb::{Database, ReadOnlyTable, ReadableDatabase, ReadableTable, TableDefinition};
+
+pub enum FromTags {
+    Bam(PathBuf),
+    Db(PathBuf),
+}
+
+impl FromTags {
+    pub fn as_path(&self) -> &Path {
+        match self {
+            FromTags::Bam(p) => p.as_path(),
+            FromTags::Db(p) => p.as_path(),
+        }
+    }
+
+    pub fn display(&self) -> std::path::Display {
+        self.as_path().display()
+    }
+}
 
 pub struct BamMergeArgs {
-    pub from_bam: PathBuf,
+    pub from: FromTags,
     pub to_bam: PathBuf,
     pub db_path: Option<PathBuf>,
     pub rename_tags_from_bam: Option<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>>,
@@ -110,6 +128,8 @@ fn extract_tags_to_db(
     db: &Database,
     table_def: TableDefinition<&str, (&str, &[u8])>,
 ) -> Result<()> {
+    const COMMIT_BATCH_SIZE: u64 = 100_000;
+
     let mut rdr_from_bam = BamReader::new(from_bam)?;
 
     let pb = ProgressBar::new_spinner();
@@ -120,18 +140,19 @@ fn extract_tags_to_db(
     );
     pb.set_message("Extracting tags from source BAM...");
 
-    let write_txn = db.begin_write()?;
-    {
-        let mut table = write_txn.open_table(table_def)?;
-        let mut count = 0u64;
+    let mut write_txn = db.begin_write()?;
+    let mut count = 0u64;
+    let mut batch_count = 0u64;
 
-        for result in rdr_from_bam.reader.records() {
-            let record = result?;
-            let read_id = record.name().context("Missing read ID")?;
-            let data = record.data();
-            let mm_opt = extract_mm_tags(&data);
-            let ml_opt = extract_ml_tag(&data);
-            if let (Some(mm), Some(ml)) = (mm_opt, ml_opt) {
+    for result in rdr_from_bam.reader.records() {
+        let record = result?;
+        let read_id = record.name().context("Missing read ID")?;
+        let data = record.data();
+        let mm_opt = extract_mm_tags(&data);
+        let ml_opt = extract_ml_tag(&data);
+        if let (Some(mm), Some(ml)) = (mm_opt, ml_opt) {
+            {
+                let mut table = write_txn.open_table(table_def)?;
                 table.insert(
                     read_id
                         .to_str()
@@ -141,19 +162,33 @@ fn extract_tags_to_db(
                         ml.as_slice(),
                     ),
                 )?;
-                count += 1;
+            }
+            count += 1;
+            batch_count += 1;
 
-                if count % 1000 == 0 {
-                    pb.set_message(format!("Extracted {} reads", HumanCount(count)));
-                }
+            if count % 1000 == 0 {
+                pb.set_message(format!("Extracted {} reads", HumanCount(count)));
+            }
+
+            // Commit and start new transaction every COMMIT_BATCH_SIZE records
+            if batch_count >= COMMIT_BATCH_SIZE {
+                write_txn.commit()?;
+                write_txn = db.begin_write()?;
+                batch_count = 0;
             }
         }
-        pb.finish_with_message(format!(
-            "Extracted {} reads with Base Modification tags",
-            HumanCount(count)
-        ));
     }
-    write_txn.commit()?;
+
+    // Commit any remaining records
+    if batch_count > 0 {
+        write_txn.commit()?;
+    }
+
+    pb.finish_with_message(format!(
+        "Extracted {} reads with Base Modification tags",
+        HumanCount(count)
+    ));
+
     Ok(())
 }
 
@@ -317,36 +352,80 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     std::io::stdout().flush()?;
 
     // Setup database
-    let db_name = if let Some(db) = args.db_path.clone() {
-        if db.extension().and_then(|s| s.to_str()) != Some("redb") {
-            return Err(anyhow!("'--db-path' requires the extension '.redb'"));
-        }
-        db
-    } else {
-        let sample_name = args
-            .from_bam
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("tags");
-        tempfile::Builder::new()
-            .prefix(&format!("{}_", sample_name))
-            .suffix(".redb")
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf()
-    };
-    info!("Writing tags to {}", db_name.display());
+    let (db, db_name) = match &args.from {
+        FromTags::Bam(b) => {
+            let db_name = if let Some(db) = args.db_path.clone() {
+                if db.extension().and_then(|s| s.to_str()) != Some("redb") {
+                    return Err(anyhow!("'--db-path' requires the extension '.redb'"));
+                }
+                db
+            } else {
+                let sample_name = b.file_stem().and_then(|s| s.to_str()).unwrap_or("tags");
+                tempfile::Builder::new()
+                    .prefix(&format!("{}_", sample_name))
+                    .suffix(".redb")
+                    .tempfile()?
+                    .into_temp_path()
+                    .to_path_buf()
+            };
+            info!("Writing tags to {}", db_name.display());
 
-    let db = Database::create(&db_name).context("Could not create DB")?;
+            let db = Database::create(&db_name).context("Could not create DB")?;
+            (db, Some(db_name))
+        }
+        FromTags::Db(db_path) => {
+            let db = Database::open(db_path)?;
+            (db, None)
+        }
+    };
     let table_definition: TableDefinition<&str, (&str, &[u8])> = TableDefinition::new("tags");
 
     // Check for overlapping keys:
     let from_bam_ignored_keys = args.ignore_tags_from_bam.clone().unwrap_or(Vec::new());
-    let mut from_bam_keys = extract_modified_descriptors_from_first_record(
-        &args.from_bam,
-        args.rename_tags_from_bam.as_ref(),
-    )?;
-    info!("Keys found in 'from_bam': {}", args.from_bam.display());
+    let mut from_bam_keys = match &args.from {
+        FromTags::Bam(b) => {
+            extract_modified_descriptors_from_first_record(b, args.rename_tags_from_bam.as_ref())?
+        }
+        FromTags::Db(_) => {
+            let read_txn = db.begin_read()?;
+            let table = read_txn.open_table(table_definition)?;
+            let mut keys = HashSet::new();
+
+            for result in table.iter()? {
+                let (_read_id, value) = result?;
+                let (mm_str, _ml_value) = value.value();
+                let mm_string = mm_str.to_string();
+
+                if !mm_string.is_empty() {
+                    let mut tag_record = TagRecord {
+                        read_id: String::new(),
+                        mm_tags: Some(mm_string),
+                        ml_tag: None,
+                    };
+                    if let Some(mv) = &args.rename_tags_from_bam {
+                        for (from, to) in mv {
+                            tag_record.rename_modified_base_descriptor(from, to);
+                        }
+                    }
+                    keys = tag_record
+                        .mm_tags
+                        .clone()
+                        .unwrap()
+                        .split(';')
+                        .filter(|s| !s.is_empty())
+                        .filter_map(|s| {
+                            s.split_once(',')
+                                .map(|(k, _)| ModifiedBaseDescriptor::from_str(k))
+                        })
+                        .collect::<Result<HashSet<ModifiedBaseDescriptor>, _>>()?;
+                    break;
+                }
+            }
+
+            keys
+        }
+    };
+    info!("Keys found in 'from_bam': {}", args.from.display());
     for key in &from_bam_keys {
         if !from_bam_ignored_keys.contains(&key) {
             info!(" - {}", key.to_string());
@@ -383,7 +462,10 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
     }
 
     // let mut map = extract_tags_to_map(&args.from_bam, args.rename_tags_from_bam.as_ref())?;
-    extract_tags_to_db(&args.from_bam, &db, table_definition)?;
+    match &args.from {
+        FromTags::Bam(b) => extract_tags_to_db(b, &db, table_definition)?,
+        _ => {}
+    }
 
     // Step 2: Read header from target BAM
     let rdr_to_bam = BamReader::new(&args.to_bam)?;
@@ -403,9 +485,11 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
 
     // Cleanup. If the user provided one we do not remove it.
     if !args.keep_db && args.db_path.is_none() {
-        warn!("Removing db: {}", db_name.display());
-        if let Err(e) = std::fs::remove_file(&db_name) {
-            eprintln!("Warning: Failed to remove temporary database: {}", e);
+        if let Some(db_path) = db_name {
+            warn!("Removing db: {}", db_path.display());
+            if let Err(e) = std::fs::remove_file(&db_path) {
+                eprintln!("Warning: Failed to remove temporary database: {}", e);
+            }
         }
     }
 
