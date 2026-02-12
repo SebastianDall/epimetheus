@@ -30,7 +30,11 @@ pub struct BamMergeCliArgs {
     #[arg(required = false, num_args(1..), long, help = "Mod codes to be ignored in the from bam.")]
     pub ignore_tags_from_bam: Vec<String>,
 
-    #[arg(long, default_value_t = false, help = "keep database to be reused.")]
+    #[arg(
+        long,
+        default_value_t = false,
+        help = "keep database to be reused. If user specified path '--db-path' this is ignored."
+    )]
     pub keep_db: bool,
 }
 
