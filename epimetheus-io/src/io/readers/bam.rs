@@ -26,7 +26,7 @@ impl BamReaderIndexed {
     pub fn new(bam_path: &Path) -> Result<Self> {
         let reader = bam::io::indexed_reader::Builder::default()
             .build_from_path(bam_path)
-            .context("Could not build bam reader.")?;
+            .context("Could not build bam reader. Did you remember to create the index file?")?;
 
         Ok(Self { reader })
     }
