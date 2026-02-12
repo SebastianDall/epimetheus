@@ -13,7 +13,7 @@ use epimetheus_io::io::{
     writers::sam::SamStdOutWriter,
 };
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
-use log::{error, info};
+use log::{error, info, warn};
 use noodles_bam as bam;
 use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::{self as sam, alignment::RecordBuf};
