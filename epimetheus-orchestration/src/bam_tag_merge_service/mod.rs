@@ -13,7 +13,7 @@ use epimetheus_io::io::{
     writers::sam::SamStdOutWriter,
 };
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
-use log::{error, info};
+use log::{error, info, warn};
 use noodles_bam as bam;
 use noodles_sam::alignment::record::data::field::Tag;
 use noodles_sam::{self as sam, alignment::RecordBuf};
@@ -337,7 +337,7 @@ pub fn bam_tag_merge_service(args: &BamMergeArgs) -> Result<()> {
         if !from_bam_ignored_keys.contains(&key) {
             info!(" - {}", key.to_string());
         } else {
-            info!(" - {} (Ignored)", key.to_string());
+            warn!(" - {} (Ignored)", key.to_string());
         }
     }
     from_bam_keys = from_bam_keys
