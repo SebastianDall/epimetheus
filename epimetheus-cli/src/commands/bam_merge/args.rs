@@ -2,13 +2,13 @@ use ahash::HashMap;
 use anyhow::anyhow;
 use clap::Parser;
 use epimetheus_io::io::modified_basecalls::descriptor::{ModCode, ModifiedBaseDescriptor};
-use epimetheus_orchestration::bam_tag_merge_service::{BamMergeArgs, FromTags};
+use epimetheus_orchestration::bam_tag_merge_service::BamMergeArgs;
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Parser, Debug, Clone)]
 pub struct BamMergeCliArgs {
     #[arg(short, long, help = "Path to bam to extract tags from")]
-    pub from_bam: Option<PathBuf>,
+    pub from_bam: PathBuf,
 
     #[arg(
         short,
@@ -20,14 +20,6 @@ pub struct BamMergeCliArgs {
     #[arg(short, long, help = "path to bam to add tags to. file must exist.")]
     pub to_bam: PathBuf,
 
-    #[arg(
-        short,
-        required = false,
-        long,
-        help = "path to construct db with tags for 'from_bams'."
-    )]
-    pub db_path: Option<PathBuf>,
-
     #[arg(required = false, num_args(1..), long, help = "Rename mod code in tag key in the 'from_bam'. <from:to>. ex C+21839.:m. Will change 21839 to m in the tag code. Has to be a lowercase string or a sequence of numbers.")]
     pub rename_tags_from_bam: Vec<String>,
 
@@ -36,29 +28,9 @@ pub struct BamMergeCliArgs {
 
     #[arg(required = false, num_args(1..), long, help = "Mod codes to be ignored in the from bam.")]
     pub ignore_tags_from_bam: Vec<String>,
-
-    #[arg(
-        long,
-        default_value_t = false,
-        help = "keep database to be reused. If user specified path '--db-path' this is ignored."
-    )]
-    pub keep_db: bool,
 }
 
 impl BamMergeCliArgs {
-    pub fn validate_from_arguments(&self) -> anyhow::Result<FromTags> {
-        match (&self.from_bam, &self.from_db) {
-            (Some(b), None) => Ok(FromTags::Bam(b.to_path_buf())),
-            (None, Some(db)) => Ok(FromTags::Db(db.to_path_buf())),
-            (Some(_), Some(_)) => Err(anyhow!(
-                "You must specify either '--from-bam' or '--from-db'. Not both"
-            )),
-            (None, None) => Err(anyhow!(
-                "You must specify either '--from-bam' or '--from-db'."
-            )),
-        }
-    }
-
     pub fn validate_rename_tags(
         tags: &Vec<String>,
     ) -> anyhow::Result<HashMap<ModifiedBaseDescriptor, ModifiedBaseDescriptor>> {
@@ -81,8 +53,6 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
     type Error = anyhow::Error;
 
     fn try_from(cli: BamMergeCliArgs) -> Result<Self, Self::Error> {
-        let from = cli.validate_from_arguments()?;
-
         let rename_tags_from = BamMergeCliArgs::validate_rename_tags(&cli.rename_tags_from_bam)?;
         let rename_tags_from_opt = if !rename_tags_from.is_empty() {
             Some(rename_tags_from)
@@ -110,13 +80,11 @@ impl TryFrom<BamMergeCliArgs> for BamMergeArgs {
         };
 
         Ok(Self {
-            from,
+            from_bam: cli.from_bam,
             to_bam: cli.to_bam,
-            db_path: cli.db_path,
             rename_tags_to_bam: rename_tags_to_opt,
             rename_tags_from_bam: rename_tags_from_opt,
             ignore_tags_from_bam,
-            keep_db: cli.keep_db,
         })
     }
 }
