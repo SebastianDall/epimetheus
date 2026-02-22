@@ -33,6 +33,8 @@ fn extract_modified_descriptors_from_first_record(
 ) -> Result<HashSet<ModifiedBaseDescriptor>> {
     let mut reader = BamReader::new(bam_path)?;
 
+    const MAX_RETRIES: usize = 30;
+    let mut retries = 0;
     for result in reader.iter_tags()? {
         let mut tag_record = result?;
 
@@ -53,7 +55,13 @@ fn extract_modified_descriptors_from_first_record(
                         .map(|(k, _)| ModifiedBaseDescriptor::from_str(k))
                 })
                 .collect::<Result<HashSet<ModifiedBaseDescriptor>, _>>()?;
-            return Ok(keys);
+            if !keys.is_empty() {
+                return Ok(keys);
+            }
+            retries += 1;
+            if retries == MAX_RETRIES {
+                return Err(anyhow!("No Modified Base Descriptors detected in reads."));
+            }
         }
     }
     Ok(HashSet::new())
