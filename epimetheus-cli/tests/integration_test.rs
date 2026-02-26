@@ -624,7 +624,7 @@ fn test_verify_expected_outputs_from_raw() {
 }
 
 #[test]
-fn test_read_methylation_pattern() {
+fn test_read_methylation_pattern_bam() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
@@ -647,6 +647,41 @@ fn test_read_methylation_pattern() {
             bam.to_str().unwrap(),
             "-a",
             assembly.to_str().unwrap(),
+            "-m",
+            "GGWCC_m_3",
+            "-o",
+            out_file.to_str().unwrap(),
+        ])
+        .status()
+        .expect("Failed to execute cargo run");
+
+    assert!(
+        status.success(),
+        "Process ended with non-success status: {:?}",
+        status
+    );
+}
+
+#[test]
+fn test_read_methylation_pattern_read() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let data_dir = PathBuf::from(manifest_dir).join("tests/data");
+
+    let fastq = data_dir.join("barcode01_5x_coverage.fastq");
+
+    let out_file = PathBuf::from(manifest_dir)
+        .join("target")
+        .join("read_meth_fastq.tsv");
+
+    let status = Command::new("cargo")
+        .args(&[
+            "run",
+            "--quiet",
+            "--",
+            "methylation-pattern",
+            "read-fastq",
+            "-i",
+            fastq.to_str().unwrap(),
             "-m",
             "GGWCC_m_3",
             "-o",
