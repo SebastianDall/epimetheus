@@ -667,7 +667,7 @@ fn test_read_methylation_pattern_read() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
-    let fastq = data_dir.join("barcode01_5x_coverage.fastq");
+    let fastq = data_dir.join("barcode01_5x_coverage.fastq.gz");
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
