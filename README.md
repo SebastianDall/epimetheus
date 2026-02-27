@@ -168,6 +168,7 @@ Options:
 #### Read level
 This mode first searches for motif occurences in reads and then returns the quality of the methylation call from the basecaller at that position [0-255]
 
+##### BAM
 The input required is an indexed bam file.
 
 The output is:
@@ -201,6 +202,35 @@ Options:
 
 ```
 
+
+##### FASTQ
+The input is a fastq file (.gz allowed) and a list of motifs to be searched for.
+
+> It is required that the fastq file has the modified basecalls in the read id string.
+To create one from a bam you need to: `samtools fastq -T MM,ML <bam> > <fastq>`
+
+> Note this will create a big tsv file! You can optionally provide a file with read-ids, whereby `epimetheus` will only output the result for those reads.
+
+- read_id: String
+- start: i32, position on the read.
+- read_length: usize	
+- motif_seq: String,
+- mod_type: String,
+- mod_pos: String,
+- quality: u8, 255: 100% confidence [0-255]
+
+```bash
+Usage: epimetheus methylation-pattern read-fastq [OPTIONS] --input <INPUT> --output <OUTPUT> --motifs <MOTIFS>...
+
+Options:
+  -i, --input <INPUT>        Path to fastq file.
+      --read-ids <READ_IDS>  File with specific read ids to process.
+  -o, --output <OUTPUT>      Path to output file. Must be .tsv.
+  -t, --threads <THREADS>    Number of parallel tasks. [default: 1]
+  -m, --motifs <MOTIFS>...   Supply chain of motifs as <motif>_<mod_type>_<mod_position>. Example: '-m GATC_a_1 RGATCY_a_2'
+  -h, --help                 Print help
+
+```
 
 ### motif-cluster
 Motif-cluster will collapse a list of provided motifs to a set of "parent" motifs.
