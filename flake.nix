@@ -36,11 +36,13 @@
             rEnv
             pkgs.cargo
             pkgs.rustc
-            pkgs.linuxKernel.packages.linux_zen.perf
+            pkgs.perf
+            pkgs.cargo-flamegraph
             pkgs.cargo-cross
             pkgs.cargo-release
             pkgs.htslib
             pkgs.samtools
+            pkgs.minimap2
 
             # For building
             pkgs.openssl
@@ -84,6 +86,7 @@
           buildInputs = [
             pkgs.openssl
             pkgs.pkg-config
+            pkgs.addr2line
           ];
           nativeBuildInputs = [
             pkgs.openssl_3_3

@@ -34,6 +34,8 @@ jobs:
           sudo apt-get install -y musl-tools
 
       - name: Build the binary
+        env:
+          CXX: g++
         run: cargo build --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py
       - name: test the binary
         run: cargo test --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py

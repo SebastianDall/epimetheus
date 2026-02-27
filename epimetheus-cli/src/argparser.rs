@@ -17,4 +17,5 @@ pub enum Commands {
     MethylationPattern(MethylationInput),
     MotifCluster(MotifClusteringArgs),
     Bgzip(BgZipArgs),
+    // BamTagMerge(BamMergeCliArgs),
 }

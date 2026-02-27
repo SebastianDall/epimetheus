@@ -238,7 +238,7 @@ impl Read {
         let ml_string = tags.get("ML").unwrap_or(&"".to_string()).clone();
         let quality_scores = parse_ml_records(&ml_string)?;
 
-        let skip_distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores)?;
+        let skip_distances = MethSkipDistances::from_meth_tags(&mm_string, quality_scores)?;
 
         let mods = convert_skip_distances_to_positions(&sequence, skip_distances)?;
 
@@ -332,7 +332,7 @@ impl MethSkipDistances {
     /// let definition = Definition::new("read-id", "MM:Z:A+a.,0,1;C+m.,2; ML:B:C,255,204,180");
     /// let mm_string = "A+a.,0,1;C+m.,2;".to_string();
     /// let quality_scores = vec![MethQual::new(255), MethQual::new(204), MethQual::new(180)];
-    /// let distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores).unwrap();
+    /// let distances = MethSkipDistances::from_meth_tags(&mm_string, quality_scores).unwrap();
     ///
     /// // Check that we parsed SixMA modifications correctly
     /// let sixma = distances.distances.get(&ModType::SixMA).unwrap();
@@ -342,14 +342,14 @@ impl MethSkipDistances {
     /// assert_eq!(sixma[1].0.0, 1);   // Second skip distance: 1
     /// assert_eq!(sixma[1].1.0, 204); // Second quality: 204
     /// ```
-    pub fn from_meth_tags(mm_string: String, quality_scores: Vec<MethQual>) -> Result<Self> {
+    pub fn from_meth_tags(mm_str: &str, quality_scores: Vec<MethQual>) -> Result<Self> {
         let mut distances = HashMap::new();
 
-        if mm_string.chars().collect::<Vec<char>>().len() == 0 {
+        if mm_str.chars().collect::<Vec<char>>().len() == 0 {
             return Ok(Self { distances });
         }
 
-        let total_modifications: usize = mm_string
+        let total_modifications: usize = mm_str
             .split(';')
             .map(|segment| segment.split(',').skip(1).count())
             .sum();
@@ -364,7 +364,7 @@ impl MethSkipDistances {
 
         let mut quality_iter = quality_scores.into_iter();
 
-        for segment in mm_string.split(";") {
+        for segment in mm_str.split(";") {
             if let Some((mod_info, distances_str)) = segment.split_once(',') {
                 if let Some(mod_type) = parse_mod_type(mod_info) {
                     let skip_distances: Vec<SkipDistance> = distances_str
@@ -438,7 +438,7 @@ pub mod tests {
         println!("{mm_string}");
         let ml_string = tags.get("ML").unwrap_or(&"".to_string()).clone();
         let quality_scores = parse_ml_records(&ml_string).unwrap();
-        let distances = MethSkipDistances::from_meth_tags(mm_string, quality_scores).unwrap();
+        let distances = MethSkipDistances::from_meth_tags(&mm_string, quality_scores).unwrap();
 
         // Debug: print what we actually parsed
         println!("Parsed distances: {:?}", distances);

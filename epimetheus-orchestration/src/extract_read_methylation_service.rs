@@ -2,7 +2,7 @@ use ahash::{AHashMap, HashSet};
 use anyhow::{Context, Result};
 use epimetheus_core::models::contig::Contig;
 use epimetheus_io::io::{
-    readers::{bam::BamReader, fastq},
+    readers::{bam::BamReaderIndexed, fastq},
     traits::FastqReader,
 };
 use epimetheus_methylome::{
@@ -44,7 +44,7 @@ pub fn extract_read_methylation_pattern(
         .build()
         .expect("Could not initialize threadpool");
 
-    let mut reader = BamReader::new(input_file)?;
+    let mut reader = BamReaderIndexed::new(input_file)?;
 
     let contigs_in_bam: Vec<String> = reader
         .query_contigs()?
@@ -99,7 +99,7 @@ pub fn extract_read_methylation_pattern(
         .par_iter()
         .try_for_each(|contig_id| -> Result<()> {
             main_pb.inc(1);
-            let mut local_reader = BamReader::new(input_file)?;
+            let mut local_reader = BamReaderIndexed::new(input_file)?;
             let reads = local_reader
                 .query_contig_reads(contig_id)
                 .with_context(|| format!("Reading contig: {}", contig_id))?;

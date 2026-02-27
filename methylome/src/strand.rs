@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// Represents the DNA strand of reference.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
@@ -47,6 +47,18 @@ impl FromStr for Strand {
             "+" => Ok(Strand::Positive),
             "-" => Ok(Strand::Negative),
             _ => bail!("Could not parse '{}' to Strand", s),
+        }
+    }
+}
+
+impl TryFrom<char> for Strand {
+    type Error = anyhow::Error;
+
+    fn try_from(value: char) -> std::result::Result<Self, Self::Error> {
+        match value {
+            '+' => Ok(Strand::Positive),
+            '-' => Ok(Strand::Negative),
+            _ => bail!("Could not parse '{}' to Strand", value),
         }
     }
 }

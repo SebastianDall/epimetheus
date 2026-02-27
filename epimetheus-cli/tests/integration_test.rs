@@ -624,11 +624,13 @@ fn test_verify_expected_outputs_from_raw() {
 }
 
 #[test]
-fn test_read_methylation_pattern() {
+fn test_read_methylation_pattern_bam() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let data_dir = PathBuf::from(manifest_dir).join("tests/data");
 
-    let bam = data_dir.join("u6343517_minimal.bam");
+    let bam = data_dir.join("barcode01_5x_coverage.bam");
+    let assembly =
+        data_dir.join("NC_000913.3_escherichia_coli_str_K_12_substr_MG1655_complete_genome.fasta");
 
     let out_file = PathBuf::from(manifest_dir)
         .join("target")
@@ -641,8 +643,45 @@ fn test_read_methylation_pattern() {
             "--",
             "methylation-pattern",
             "read-bam",
-            "-i",
+            "-b",
             bam.to_str().unwrap(),
+            "-a",
+            assembly.to_str().unwrap(),
+            "-m",
+            "GGWCC_m_3",
+            "-o",
+            out_file.to_str().unwrap(),
+        ])
+        .status()
+        .expect("Failed to execute cargo run");
+
+    assert!(
+        status.success(),
+        "Process ended with non-success status: {:?}",
+        status
+    );
+}
+
+#[test]
+fn test_read_methylation_pattern_read() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let data_dir = PathBuf::from(manifest_dir).join("tests/data");
+
+    let fastq = data_dir.join("barcode01_5x_coverage.fastq.gz");
+
+    let out_file = PathBuf::from(manifest_dir)
+        .join("target")
+        .join("read_meth_fastq.tsv");
+
+    let status = Command::new("cargo")
+        .args(&[
+            "run",
+            "--quiet",
+            "--",
+            "methylation-pattern",
+            "read-fastq",
+            "-i",
+            fastq.to_str().unwrap(),
             "-m",
             "GGWCC_m_3",
             "-o",
