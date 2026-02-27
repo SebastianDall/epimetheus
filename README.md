@@ -28,6 +28,7 @@ To create the python wheel from source follow the steps below:
 
 ```bash
 git clone https://github.com/SebastianDall/epimetheus.git
+cd epimetheus
 
 # Create a python venv or install maturin
 python -m venv epimetheus-venv
@@ -46,6 +47,7 @@ To build from source run:
 
 ```bash
 git clone https://github.com/SebastianDall/epimetheus.git
+cd epimetheus
 
 cargo install --locked --path epimetheus-cli
 ```
