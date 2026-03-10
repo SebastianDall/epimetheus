@@ -101,9 +101,9 @@ mod tests {
         let mut contig =
             Contig::from_string("contig_1".to_string(), "TGGACGATCCCGATC".to_string()).unwrap();
 
-        let meth_record1 = MethylationCoverage::new(1, 1, 0).unwrap();
-        let meth_record2 = MethylationCoverage::new(2, 2, 0).unwrap();
-        let meth_record3 = MethylationCoverage::new(3, 3, 0).unwrap();
+        let meth_record1 = MethylationCoverage::new(1, 1, 0, 0, 0).unwrap();
+        let meth_record2 = MethylationCoverage::new(2, 2, 0, 0, 0).unwrap();
+        let meth_record3 = MethylationCoverage::new(3, 3, 0, 0, 0).unwrap();
 
         // Insert 6mA records
         contig
@@ -135,7 +135,7 @@ mod tests {
             .collect();
 
         // Ensure records match the expected values
-        let binding = MethylationCoverage::new(1, 1, 0).unwrap();
+        let binding = MethylationCoverage::new(1, 1, 0, 0, 0).unwrap();
         let expected = vec![Some(&binding), Some(&binding)];
 
         assert_eq!(meth_records, expected);
@@ -149,7 +149,7 @@ mod tests {
 
         assert_eq!(meth_records, expected);
 
-        let binding = MethylationCoverage::new(3, 3, 0).unwrap();
+        let binding = MethylationCoverage::new(3, 3, 0, 0, 0).unwrap();
         let meth_records: Vec<Option<&MethylationCoverage>> = contig
             .get_methylated_positions(&[8], Strand::Positive, ModType::FiveMC)
             .iter()
@@ -166,7 +166,7 @@ mod tests {
             4,
             Strand::Positive,
             ModType::SixMA,
-            MethylationCoverage::new(1, 1, 0).unwrap(),
+            MethylationCoverage::new(1, 1, 0, 0, 0).unwrap(),
         );
 
         assert!(result.is_err());

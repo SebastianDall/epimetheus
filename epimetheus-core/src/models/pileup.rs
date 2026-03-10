@@ -168,8 +168,13 @@ impl PileupRecord {
     }
 
     pub fn to_methylation_record(&self) -> anyhow::Result<MethylationRecord> {
-        let methylation_coverage =
-            MethylationCoverage::new(self.n_modified, self.n_valid_cov, self.n_other_mod)?;
+        let methylation_coverage = MethylationCoverage::new(
+            self.n_modified,
+            self.n_valid_cov,
+            self.n_other_mod,
+            self.n_diff,
+            self.n_fail,
+        )?;
 
         Ok(MethylationRecord {
             contig: self.contig.clone(),

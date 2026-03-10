@@ -17,10 +17,18 @@ use crate::models::{
 pub struct MethylationCoverage {
     n_modified: u32,
     n_valid_cov: u32,
+    n_diff: u32,
+    n_fail: u32,
 }
 
 impl MethylationCoverage {
-    pub fn new(n_modified: u32, n_valid_cov: u32, n_other_mod: u32) -> Result<Self> {
+    pub fn new(
+        n_modified: u32,
+        n_valid_cov: u32,
+        n_other_mod: u32,
+        n_diff: u32,
+        n_fail: u32,
+    ) -> Result<Self> {
         if n_modified > n_valid_cov {
             bail!(
                 "Invalid coverage: n_valid_cov ({}) cannot be less than n_modified ({})",
@@ -34,6 +42,8 @@ impl MethylationCoverage {
         Ok(Self {
             n_modified,
             n_valid_cov,
+            n_diff,
+            n_fail,
         })
     }
 
@@ -43,6 +53,12 @@ impl MethylationCoverage {
 
     pub fn get_n_valid_cov(&self) -> u32 {
         self.n_valid_cov
+    }
+    pub fn get_n_diff(&self) -> u32 {
+        self.n_diff
+    }
+    pub fn get_n_fail(&self) -> u32 {
+        self.n_fail
     }
 
     pub fn fraction_modified(&self) -> f64 {
@@ -63,8 +79,13 @@ impl TryFrom<PileupRecord> for MethylationRecord {
     type Error = anyhow::Error;
 
     fn try_from(value: PileupRecord) -> std::result::Result<Self, Self::Error> {
-        let meth =
-            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+        let meth = MethylationCoverage::new(
+            value.n_modified,
+            value.n_valid_cov,
+            value.n_other_mod,
+            value.n_diff,
+            value.n_fail,
+        )?;
         Ok(Self {
             contig: value.contig.clone(),
             position: value.start as usize,
@@ -110,8 +131,13 @@ impl MethylationRecord {
             return Ok(None);
         }
 
-        let meth =
-            MethylationCoverage::new(value.n_modified, value.n_valid_cov, value.n_other_mod)?;
+        let meth = MethylationCoverage::new(
+            value.n_modified,
+            value.n_valid_cov,
+            value.n_other_mod,
+            value.n_diff,
+            value.n_fail,
+        )?;
 
         Ok(Some(Self {
             contig: value.contig.clone(),
@@ -237,7 +263,10 @@ impl MotifMethylationPositions {
         methylation: AHashMap<(ContigId, Motif, ContigPosition, Strand), MethylationCoverage>,
         motif_occurence_totals: AHashMap<(ContigId, Motif, Strand), u32>,
     ) -> Self {
-        Self { methylation, motif_occurence_totals }
+        Self {
+            methylation,
+            motif_occurence_totals,
+        }
     }
 
     fn group_by_motif(&self) -> AHashMap<(ContigId, Motif), Vec<&MethylationCoverage>> {
@@ -280,8 +309,18 @@ impl MotifMethylationPositions {
                     total_cov as f64 / coverages.len() as f64
                 };
 
-                let motif_occurences_fwd = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Positive)).cloned().unwrap_or(0).clone();
-                let motif_occurences_rev = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Negative)).cloned().unwrap_or(0).clone();
+                let motif_occurences_fwd = self
+                    .motif_occurence_totals
+                    .get(&(contig_id.clone(), motif.clone(), Strand::Positive))
+                    .cloned()
+                    .unwrap_or(0)
+                    .clone();
+                let motif_occurences_rev = self
+                    .motif_occurence_totals
+                    .get(&(contig_id.clone(), motif.clone(), Strand::Negative))
+                    .cloned()
+                    .unwrap_or(0)
+                    .clone();
 
                 let motif_occurence_totals = motif_occurences_fwd + motif_occurences_rev;
 
@@ -322,8 +361,18 @@ impl MotifMethylationPositions {
                     total_cov as f64 / coverages.len() as f64
                 };
 
-                let motif_occurences_fwd = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Positive)).cloned().unwrap_or(0).clone();
-                let motif_occurences_rev = self.motif_occurence_totals.get(&(contig_id.clone(), motif.clone(), Strand::Negative)).cloned().unwrap_or(0).clone();
+                let motif_occurences_fwd = self
+                    .motif_occurence_totals
+                    .get(&(contig_id.clone(), motif.clone(), Strand::Positive))
+                    .cloned()
+                    .unwrap_or(0)
+                    .clone();
+                let motif_occurences_rev = self
+                    .motif_occurence_totals
+                    .get(&(contig_id.clone(), motif.clone(), Strand::Negative))
+                    .cloned()
+                    .unwrap_or(0)
+                    .clone();
                 let motif_occurence_totals = motif_occurences_fwd + motif_occurences_rev;
 
                 WeightedMeanMotifMethylationDegree {
@@ -332,7 +381,7 @@ impl MotifMethylationPositions {
                     w_mean: weighted_mean,
                     mean_read_cov,
                     n_motif_obs: coverages.len() as u32,
-                    motif_occurences_total: motif_occurence_totals
+                    motif_occurences_total: motif_occurence_totals,
                 }
             })
             .collect()
@@ -423,7 +472,7 @@ impl MethylationPatternVariant {
             MethylationPatternVariant::Raw(meth_pos) => {
                 writeln!(
                     writer,
-                    "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov"
+                    "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov\tn_diff\tn_fail"
                 )?;
 
                 let mut sorted_entries: Vec<_> = meth_pos.methylation.iter().collect();
@@ -434,7 +483,7 @@ impl MethylationPatternVariant {
                 for ((contig_id, motif, pos, strand), meth) in sorted_entries {
                     writeln!(
                         writer,
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         contig_id,
                         pos,
                         strand.to_string(),
@@ -443,6 +492,8 @@ impl MethylationPatternVariant {
                         motif.mod_position,
                         meth.get_n_modified(),
                         meth.get_n_valid_cov(),
+                        meth.get_n_diff(),
+                        meth.get_n_fail()
                     )?;
                 }
             }
@@ -483,11 +534,11 @@ mod test {
     #[test]
     fn test_methylation_coverage_valid() -> Result<()> {
         // Test valid inputs
-        let coverage = MethylationCoverage::new(5, 10, 0)?;
+        let coverage = MethylationCoverage::new(5, 10, 0, 0, 0)?;
         assert_eq!(coverage.n_modified, 5);
         assert_eq!(coverage.n_valid_cov, 10);
 
-        let coverage = MethylationCoverage::new(0, 0, 0)?;
+        let coverage = MethylationCoverage::new(0, 0, 0, 0, 0)?;
         assert_eq!(coverage.n_modified, 0);
         assert_eq!(coverage.n_valid_cov, 0);
 
@@ -497,7 +548,7 @@ mod test {
     #[test]
     fn test_methylation_coverage_invalid() {
         // Test invalid input: n_valid_cov < n_modified
-        let result = MethylationCoverage::new(10, 5, 0);
+        let result = MethylationCoverage::new(10, 5, 0, 0, 0);
 
         assert!(result.is_err());
         if let Err(e) = result {
