@@ -9,8 +9,6 @@ To use `epimetheus` it is therefore necessary to know which motifs to look for b
 
 > If using nixos the entire project should be contained in the `flake.nix` + `.envrc`.
 ### Python package
-This project is distributed as a python package using `pyo3`, which can be build using `maturin develop -m epimetheus-py/Cargo.toml`.
-Can be installed via `conda` or `pypi` using:
 
 ```bash
 pip install epimetheus-py
@@ -20,24 +18,7 @@ pip install epimetheus-py
 conda install -c conda-forge -c bioconda epimetheus-py
 ```
 
-#### Develop from source
-To create the python wheel from source follow the steps below:
-
-> Note this requires the cargo tool chain
-
-
-```bash
-git clone https://github.com/SebastianDall/epimetheus.git
-cd epimetheus
-
-# Create a python venv or install maturin
-python -m venv epimetheus-venv
-
-pip install maturing develop
-
-cd epimetheus-py
-maturin develop # This will build and install the package.
-```
+For the full Python API reference and usage examples, see the [epymetheus README](epimetheus-py/README.md).
 
 
 ### CLI tool
