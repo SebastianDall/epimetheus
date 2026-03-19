@@ -48,6 +48,8 @@ jobs:
           sudo apt-get install -y musl-tools
 
       - name: Build the binary
+        env:
+          CXX: g++
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: test the binary
