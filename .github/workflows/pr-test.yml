@@ -4,6 +4,36 @@ on:
       - master
      
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'epimetheus-py/**'
+
+  test-python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install maturin and test deps
+        run: pip install maturin pytest polars biopython
+      - name: Build and install Python package
+        run: maturin develop -m epimetheus-py/Cargo.toml
+      - name: Run Python tests
+        run: pytest epimetheus-py/tests/
+
   build-and-test:
     runs-on: ${{ matrix.os }}
 
