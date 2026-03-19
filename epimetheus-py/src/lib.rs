@@ -673,6 +673,7 @@ fn epymetheus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_child_motifs, m)?)?;
     m.add_function(wrap_pyfunction!(query_pileup_records, m)?)?;
     m.add_function(wrap_pyfunction!(bgzf_pileup, m)?)?;
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<MethylationOutput>()?;
     m.add_class::<PileupColumn>()?;
     m.add_class::<BgzfWriter>()?;
