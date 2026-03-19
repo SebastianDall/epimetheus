@@ -472,7 +472,7 @@ fn test_verify_expected_outputs_from_raw() {
     let header = raw_lines[0];
     assert_eq!(
         header,
-        "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov"
+        "contig\tstart\tstrand\tmotif\tmod_type\tmod_position\tn_modified\tn_valid_cov\tn_diff\tn_fail"
     );
 
     // Group data by (contig, motif, mod_type, mod_position)

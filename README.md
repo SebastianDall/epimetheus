@@ -137,7 +137,7 @@ The return is a dataframe with:
 Three output types are available:
 - median: Firstly the fraction of reads at motif positions is calculated and the median of these are returned.
 - weighted-mean: the fraction of reads modified weighted by the n_valid_coverage at those positions.
-- raw: Outputs the all motif positions and their n_modified and n_valid_cov
+- raw: Outputs the all motif positions and their n_modified, n_valid_cov, n_fail, and n_diff
 ```bash
 Usage: epimetheus methylation-pattern contig [OPTIONS] --pileup <PILEUP> --assembly <ASSEMBLY> --output <OUTPUT> --motifs <MOTIFS>...
 

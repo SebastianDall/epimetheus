@@ -16,7 +16,7 @@ soil.sh
 !src/data
 benchmark.sh
 out.tsv
-flamegraph.svg
+*.svg
 /target
 motif/target
 x86_64-unknown-linux-gnu

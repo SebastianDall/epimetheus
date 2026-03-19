@@ -259,7 +259,7 @@ mod tests {
                     .into_iter()
                     .map(|(_pos, rec)| rec.unwrap().clone())
                     .collect::<Vec<MethylationCoverage>>(),
-                vec![MethylationCoverage::new(15, 15, 0).unwrap()]
+                vec![MethylationCoverage::new(15, 15, 0, 0, 6).unwrap()]
             );
         }
 
@@ -321,7 +321,7 @@ mod tests {
                         .into_iter()
                         .map(|(_pos, res)| res.unwrap().clone())
                         .collect::<Vec<MethylationCoverage>>(),
-                    vec![MethylationCoverage::new(5, 20, 0).unwrap()]
+                    vec![MethylationCoverage::new(5, 20, 0, 0, 6).unwrap()]
                 );
             }
         }
