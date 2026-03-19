@@ -71,7 +71,7 @@ jobs:
 
       - name: Build the binary
         env:
-          CXX_x86_64_unknown_linux_musl: g++
+          CXX: g++
         run: cargo build --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py
       - name: test the binary
         run: cargo test --release --target ${{ matrix.target }} --workspace --exclude epimetheus-py
