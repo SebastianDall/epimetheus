@@ -18,7 +18,7 @@ jobs:
               - 'epimetheus-py/**'
 
   test-python:
-    name: Publish Python Wheel to PyPi
+    name: Test python package
     needs: changes
     if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
