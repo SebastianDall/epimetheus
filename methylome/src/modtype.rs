@@ -23,6 +23,7 @@ pub enum ModType {
     SixMA,
     FiveMC,
     FourMC,
+    FiveHmC,
 }
 
 impl ModType {
@@ -46,6 +47,7 @@ impl ModType {
             ModType::SixMA => "a",
             ModType::FiveMC => "m",
             ModType::FourMC => "21839",
+            ModType::FiveHmC => "h",
         }
     }
 
@@ -97,6 +99,7 @@ impl fmt::Display for ModType {
             ModType::SixMA => write!(f, "6mA (a)"),
             ModType::FiveMC => write!(f, "5mC (m)"),
             ModType::FourMC => write!(f, "4mC (21839)"),
+            ModType::FiveHmC => write!(f, "5hmC (h)"),
         }
     }
 }

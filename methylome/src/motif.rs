@@ -63,7 +63,7 @@ impl Motif {
                     );
                 }
             }
-            ModType::FiveMC | ModType::FourMC => {
+            ModType::FiveMC | ModType::FourMC | ModType::FiveHmC => {
                 if *base_at_position != IupacBase::C {
                     bail!(
                         "mod_position {} points to base '{}' which is invalid for {} modification type.",

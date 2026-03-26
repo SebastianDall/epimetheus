@@ -355,6 +355,7 @@ impl IupacBase {
             &ModType::SixMA => IupacBase::A,
             &ModType::FiveMC => IupacBase::C,
             &ModType::FourMC => IupacBase::C,
+            &ModType::FiveHmC => IupacBase::C,
         }
     }
 }
